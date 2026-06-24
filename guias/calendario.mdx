@@ -1,0 +1,113 @@
+---
+title: "Calendario Operativo y Consulta de Historial de Visitas"
+sidebarTitle: "Calendario"
+description: "Visualice la ocupación mensual del túnel en un calendario interactivo, explore días y sus visitas, y consulte el historial completo con filtros por rango de fechas."
+---
+
+El Calendario Operativo (`/calendario`) ofrece una visión mensual de la actividad del túnel subfluvial. Cada celda del calendario muestra el estado de ocupación del día, lo que permite identificar de un vistazo qué fechas tienen cupo disponible antes de registrar una nueva visita. Al hacer clic en cualquier día activo se abre un panel con el detalle de las visitas registradas para esa jornada.
+
+## Vista mensual
+
+Al ingresar, el calendario carga automáticamente el mes y año actuales realizando la petición `GET /api/visitas/calendario?anio=YYYY&mes=MM`. La respuesta es un objeto indexado por número de día, donde cada día incluye su estado de ocupación, la cantidad total de personas y el número de grupos registrados.
+
+### Indicadores de color por día
+
+| Color / Estado | Condición | Texto en badge |
+|---|---|---|
+| **Gris / Sin badge** | No hay visitas registradas y la fecha es futura o es hoy | _Libre_ (solo en días futuros) |
+| **Verde** (`bg-[#e6f4ea]`) | Hay visitas y el aforo diario no está completo, día futuro | `Slots Disponibles` |
+| **Gris tenue** (`bg-surface-container`) | Hay visitas en una fecha ya pasada | `Con visitas` |
+| **Rojo** (`bg-error-container`) | El total de personas alcanzó o superó la `capacidad_maxima` (300 personas/día) | `Alta Ocupación` |
+| **Gris opaco** (`bg-surface-container-low`, opacidad 60%) | Día registrado como inhábil en `DiaInhabil` | Descripción del motivo |
+
+El resaltado del **día actual** se indica con un anillo de color primario alrededor del número de día (`ring-2 ring-primary`).
+
+### Datos mostrados en cada celda
+
+- **Número del día** en la esquina superior izquierda, con fondo de color primario si es hoy.
+- **Cantidad de personas** totales (cuando hay visitas activas y el día no está inhabilitado).
+- **Badge de estado** según la tabla de indicadores anterior.
+
+## Navegar entre meses
+
+Los controles de navegación están en la barra superior del calendario:
+
+<Steps>
+  <Step title="Mes anterior">
+    El botón con ícono `chevron_left` resta un mes al estado `fechaActual`. El componente recalcula el número de días del mes y el día de la semana del primer día de forma automática.
+  </Step>
+  <Step title="Hoy">
+    El botón **"Hoy"** restablece `fechaActual` al mes y año actuales mediante `setFechaActual(new Date())`.
+  </Step>
+  <Step title="Mes siguiente">
+    El botón con ícono `chevron_right` suma un mes. No hay límite de navegación hacia el futuro, lo que permite planificar visitas con meses de anticipación.
+  </Step>
+</Steps>
+
+## Interacción con días del calendario
+
+Al hacer clic en una celda de día activo (estado distinto de `inhabilitado`), el sistema:
+
+1. Construye la fecha en formato `YYYY-MM-DD`.
+2. Realiza una petición `GET /api/visitas?fecha=YYYY-MM-DD` para obtener el listado completo de visitas del día, incluyendo las canceladas.
+3. Abre un modal con el **detalle del día** que lista todos los grupos con su horario, nombre, gestor, cantidad de personas y badge de estado (`Agendada`, `Realizada` o `Cancelada`).
+
+<Tip>
+  Usa el calendario para **planificar nuevas visitas** antes de ingresar al formulario de registro. Si el día que necesitas aparece en verde ("Slots Disponibles"), aún hay cupo. Si aparece en rojo ("Alta Ocupación"), el aforo diario de 300 personas está completo y no podrás registrar nuevas visitas para ese día. Haz clic en el día para ver exactamente cuántos grupos y personas están agendados y en qué horarios.
+</Tip>
+
+### Modal de detalle del día
+
+El modal muestra:
+
+- Fecha formateada con nombre del día de la semana (usando `toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })`).
+- Lista de visitas del día con hora de inicio, nombre del grupo, gestor, badge de estado y cantidad de personas.
+- Íconos adicionales si la visita tiene `tiene_cruce_tunel` (ícono ámbar) o `tiene_discapacidad` (ícono de accesibilidad).
+- Si el día no tiene visitas, se muestra un botón de acceso directo **"Agregar visita para este día"** que navega a `/nueva-visita?fecha=YYYY-MM-DD`.
+
+### Días inhábiles en el calendario
+
+Los días registrados en la tabla `DiaInhabil` aparecen con fondo gris apagado y una opacidad reducida al 60%. El badge de estado muestra la descripción del motivo del bloqueo (p. ej.: "Feriado Nacional" o "Mantenimiento del túnel"). Hacer clic en un día inhabilitado **no dispara ninguna acción**: el sistema lo detecta con `if (estadoDia.estado === 'inhabilitado') return;`.
+
+## Exportar listado por rango de fechas
+
+El botón **"Imprimir Listado"** en la barra de herramientas superior del calendario abre un modal para generar un reporte PDF de visitas en un rango de fechas personalizado.
+
+<Steps>
+  <Step title="Abrir el modal">
+    Haz clic en "Imprimir Listado". El modal muestra dos campos de tipo `date`: **Fecha Desde** y **Fecha Hasta**.
+  </Step>
+  <Step title="Seleccionar el rango">
+    Ingresa las dos fechas. El sistema valida que la fecha de inicio sea estrictamente anterior a la fecha de fin antes de enviar la solicitud.
+  </Step>
+  <Step title="Descargar el PDF">
+    Al hacer clic en "Descargar PDF", se llama a `GET /api/estadisticas/exportar/rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD`. El archivo descargado tiene el nombre `Reporte_Visitas_YYYY-MM-DD_a_YYYY-MM-DD.pdf`.
+  </Step>
+</Steps>
+
+<Warning>
+  La fecha **"Desde"** debe ser estrictamente menor que la fecha **"Hasta"**. Si las fechas son iguales o el orden es incorrecto, el sistema mostrará un error de validación en el modal: _"La fecha 'Desde' debe ser menor que la fecha 'Hasta'."_
+</Warning>
+
+## Historial completo de visitas
+
+El historial (`GET /api/visitas/historial?page=1&pageSize=50`) devuelve todas las visitas registradas en el sistema, incluyendo las pasadas y las canceladas, paginadas en grupos de 50. Este endpoint es la fuente para la vista de listado/historial que permite buscar visitas antiguas sin necesidad de navegar día a día en el calendario.
+
+### Consulta por rango de fechas (API)
+
+Para filtrar visitas en un período específico sin generar PDF, se puede consultar el endpoint:
+
+```
+GET /api/visitas/rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+```
+
+Este endpoint devuelve el listado completo de visitas (activas y canceladas) en el rango indicado, con todos los campos de la visita, del grupo y del gestor. Es la fuente de datos que también alimenta la exportación de reportes de rango en el Dashboard de Estadísticas.
+
+<CardGroup cols={2}>
+  <Card title="Dashboard Operativo" icon="layout-dashboard" href="/guias/dashboard">
+    Vista diaria con cronograma de turnos, KPIs del día y acciones rápidas sobre cada visita.
+  </Card>
+  <Card title="Reportes y Exportación" icon="file-text" href="/guias/reportes-exportacion">
+    Genera PDFs del cronograma diario, reportes mensuales, por rango o comprobantes individuales.
+  </Card>
+</CardGroup>

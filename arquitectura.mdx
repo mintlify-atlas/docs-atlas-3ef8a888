@@ -1,0 +1,233 @@
+---
+title: "Arquitectura Técnica del Sistema de Gestión de Visitas"
+sidebarTitle: "Arquitectura"
+description: "Capas del backend Express, estructura React, flujo JWT, modelo de aforo dual y generación de PDFs con Puppeteer en el Túnel Subfluvial."
+---
+
+El sistema sigue una arquitectura **cliente-servidor desacoplada** de tres niveles donde cada capa tiene responsabilidades bien definidas y se comunica exclusivamente con la capa adyacente. El frontend React es una SPA (Single Page Application) que nunca accede directamente a la base de datos; toda la lógica de negocio reside en el backend Express, y la persistencia está completamente encapsulada en la capa de repositorios sobre PostgreSQL.
+
+## Diagrama de alto nivel
+
+El flujo general de una petición autenticada desde el navegador hasta la base de datos es el siguiente:
+
+```
+Navegador Web (React SPA)
+        │
+        │  HTTPS + JSON  (cabecera: Authorization: Bearer <JWT>)
+        ▼
+┌─────────────────────────────────────────────┐
+│          Backend  Node.js / Express 5        │
+│                                             │
+│  CORS Middleware → auth.middleware.ts        │
+│        → Routes → Controllers               │
+│        → Services → Repositories            │
+│        → pg Pool                            │
+│                                             │
+│  [Puppeteer-Core + @sparticuz/chromium]      │
+│     (generación de PDFs en procesos hijo)    │
+└─────────────────────────────────────────────┘
+        │
+        │  SQL parametrizado (pg Pool)
+        ▼
+┌─────────────────┐       ┌───────────────────────────┐
+│  PostgreSQL DB  │       │  API Georef Argentina      │
+│  (puerto 5432)  │       │  (georef.gob.ar — externo) │
+└─────────────────┘       └───────────────────────────┘
+```
+
+La API Georef es consumida **directamente desde el frontend** para el autocompletado de provincias y localidades. No pasa por el backend; es una dependencia exclusiva de la capa de presentación.
+
+## Arquitectura del backend en 4 capas
+
+El backend Node.js implementa una arquitectura limpia en capas. Cada capa sólo conoce a la inmediatamente inferior, lo que permite modificar, por ejemplo, la capa de repositorios sin tocar los controladores.
+
+```
+[Request HTTP] → Middleware → Routes → Controllers → Services → Repositories → PostgreSQL
+```
+
+<Accordion title="Capa 1: Middleware (src/middleware/)">
+  El middleware `auth.middleware.ts` actúa como portero de toda la API protegida. Intercepta cada petición entrante, extrae el token JWT del encabezado `Authorization: Bearer <token>`, lo verifica criptográficamente con `JWT_SECRET` y decodifica el payload. Los datos del usuario (`id`, `email`, `rol`) quedan disponibles en `req.usuario` para el resto de la cadena.
+
+  La función `verificarRol()` del mismo middleware restringe rutas específicas al rol `Admin`, devolviendo `403 Forbidden` si un Guía intenta acceder a un endpoint exclusivo de administración.
+</Accordion>
+
+<Accordion title="Capa 2: Rutas (src/routes/)">
+  Las rutas definen los endpoints de la API y asocian cada URL con su controlador y middlewares correspondientes. Los módulos de rutas registrados en `app.ts` son:
+
+  | Módulo de rutas | Prefijo URL |
+  |---|---|
+  | `auth.routes.ts` | `/api/auth` |
+  | `visita.routes.ts` | `/api/visitas` |
+  | `gestor.routes.ts` | `/api/gestores` |
+  | `institucion.routes.ts` | `/api/instituciones` |
+  | `usuario.routes.ts` | `/api/usuarios` |
+  | `configuracion.routes.ts` | `/api/configuracion` |
+  | `diaInhabil.routes.ts` | `/api/dias-inhabiles` |
+  | `estadisticas.routes.ts` | `/api/estadisticas` |
+  | `auditoria.routes.ts` | `/api/auditoria` |
+</Accordion>
+
+<Accordion title="Capa 3: Controladores (src/controllers/)">
+  Los controladores son el punto de entrada HTTP. Extraen parámetros de `req.params`, `req.query` y `req.body`, delegan la lógica al servicio correspondiente y devuelven la respuesta JSON con el código de estado HTTP adecuado (`200`, `201`, `400`, `401`, `403`, `404`, `500`). No contienen lógica de negocio propia.
+</Accordion>
+
+<Accordion title="Capa 4: Servicios y Repositorios (src/services/ y src/repositories/)">
+  **Servicios** — Contienen toda la lógica de negocio: validaciones de aforo, verificación de días inhábiles, cálculo de estadísticas y orquestación de múltiples operaciones de repositorio en una sola transacción. Son agnósticos del protocolo HTTP.
+
+  **Repositorios** — Encapsulan las operaciones SQL directas contra PostgreSQL usando el pool de conexiones `pg`. Todas las queries usan parámetros posicionales (`$1`, `$2`, ...) para prevenir inyección SQL. Ninguna consulta concatena strings de usuario.
+
+  El servicio `export.service.ts` es un caso especial: lanza un proceso Chromium headless usando `puppeteer-core` + `@sparticuz/chromium`, renderiza una plantilla HTML en memoria y la convierte a PDF binario que se entrega como `application/pdf` en la respuesta HTTP.
+</Accordion>
+
+## Estructura del frontend React
+
+El frontend es una SPA construida con React 19 + TypeScript compilada por Vite. Las rutas de navegación son gestionadas por `react-router-dom` v7.
+
+```
+frontend/src/
+├── pages/        # Vistas principales (Dashboard, Calendario, RegistroVisita,
+│                 # Auditoria, GestionUsuarios, Configuraciones, DashboardAdmin…)
+├── components/   # Componentes UI reutilizables (botones, tablas, diálogos,
+│                 # gráficos de estadísticas, badges de estado)
+├── context/      # Estado global — AuthContext.tsx: token JWT, datos del usuario,
+│                 # detección de inactividad y cierre automático de sesión
+└── utils/        # Funciones auxiliares y tipos estáticos (visitaTypes.ts)
+```
+
+Toda la comunicación con el backend se realiza con la **Fetch API** nativa del navegador. La URL base se lee de `import.meta.env.VITE_API_URL` y cada petición protegida incluye el header `Authorization: Bearer <token>`.
+
+## Autenticación con JWT
+
+El flujo de autenticación es stateless; el servidor no almacena sesiones.
+
+<Steps>
+  <Step title="Login">
+    El usuario envía sus credenciales a `POST /api/auth/login`. El backend busca al usuario en la tabla `USUARIO` por `email` y compara la contraseña con el hash almacenado usando `bcryptjs.compare()`.
+  </Step>
+  <Step title="Emisión del token">
+    Si las credenciales son válidas, el backend lee el valor de `session_timeout_minutes` en la tabla `CONFIGURACION` (por defecto 30) y emite un JWT firmado con `JWT_SECRET` que contiene `{ id, email, rol }` y expira en ese número de minutos.
+  </Step>
+  <Step title="Almacenamiento en cliente">
+    El frontend (AuthContext.tsx) guarda el token en `localStorage`. A partir de ese momento, cada petición HTTP incluye `Authorization: Bearer <token>` en los headers.
+  </Step>
+  <Step title="Verificación en cada petición">
+    `auth.middleware.ts` intercepta cada ruta protegida, verifica la firma del JWT y el tiempo de expiración. Si el token es inválido o expiró, devuelve `401 Unauthorized`.
+  </Step>
+  <Step title="Cierre automático de sesión">
+    `AuthContext.tsx` monitorea la inactividad del usuario en el frontend. Si el usuario no interactúa durante `session_timeout_minutes` minutos, el contexto elimina el token de `localStorage` y redirige al Login automáticamente.
+  </Step>
+</Steps>
+
+<Note>
+El tiempo de expiración del JWT se lee en tiempo real de la base de datos en cada inicio de sesión, lo que significa que cambiar `session_timeout_minutes` desde la UI de Configuraciones tiene efecto en el siguiente login, sin necesidad de reiniciar el servidor.
+</Note>
+
+## Modelo de capacidad dual
+
+Desde la versión actual, el sistema soporta **múltiples grupos por turno** y controla el aforo en dos niveles independientes y configurables:
+
+| Nivel | Clave en `CONFIGURACION` | Descripción | Valor por defecto |
+|---|---|---|---|
+| **Diario** | `capacidad_maxima` | Tope total de personas en el día (suma de todos los turnos activos) | 300 |
+| **Por turno** | `capacidad_por_turno` | Tope de personas en un mismo slot `fecha + hora_inicio` | 80 |
+
+Ambos parámetros son modificables desde la página **Configuraciones del Sistema** y cada cambio queda registrado automáticamente en `LOGAUDITORIA`.
+
+El dashboard refleja este modelo mostrando, en cada slot con múltiples grupos, el badge con el número de grupos, las personas ya agendadas y el cupo restante del turno. Si el cupo del turno está agotado, el botón "Agregar grupo" desaparece y el slot se marca como `lleno`.
+
+## Flujo de registro de una visita (validación en 5 pasos)
+
+Este es el flujo más crítico del sistema. Antes de insertar cualquier visita en la base de datos, el `VisitaService` ejecuta las siguientes validaciones en orden secuencial:
+
+<Steps>
+  <Step title="Verificar token y rol (Middleware)">
+    `auth.middleware.ts` valida el JWT y confirma que el rol del usuario tiene permisos para crear visitas. Si el token es inválido o expiró, la petición se rechaza con `401 Unauthorized` antes de llegar al controlador.
+  </Step>
+  <Step title="Verificar día inhábil">
+    El servicio consulta la tabla `DIAINHABIL` buscando la fecha de la visita solicitada. Si existe un registro coincidente, la visita se rechaza con `400 Bad Request` independientemente del aforo disponible.
+
+    ```sql
+    SELECT * FROM diainhabil WHERE fecha = $1
+    ```
+  </Step>
+  <Step title="Verificar aforo diario">
+    Se suma el total de personas ya agendadas para ese día (excluyendo las canceladas) y se compara con `capacidad_maxima`. Si agregar el nuevo grupo supera el límite, la solicitud se rechaza indicando la cantidad de cupos restantes.
+
+    ```sql
+    SELECT SUM(cantidad_personas)
+    FROM visita
+    WHERE fecha = $1 AND estado != 'Cancelada'
+    ```
+  </Step>
+  <Step title="Verificar aforo por turno">
+    Se suma el total de personas ya agendadas en el mismo slot `fecha + hora_inicio` y se compara con `capacidad_por_turno`. Múltiples grupos pueden coexistir en el mismo turno siempre que no superen este límite.
+
+    ```sql
+    SELECT SUM(cantidad_personas)
+    FROM visita
+    WHERE fecha = $1 AND hora_inicio = $2 AND estado != 'Cancelada'
+    ```
+  </Step>
+  <Step title="Insertar visita y registrar en auditoría">
+    Si las tres validaciones pasan, se ejecuta el `INSERT` en la tabla `VISITA` y, de forma atómica, `AuditoriaService` inserta una fila en `LOGAUDITORIA` con el `usuario_id`, la acción `'Registró visita ID: ...'` y el timestamp `NOW()`. El controlador devuelve `201 Created` con los datos de la visita creada.
+  </Step>
+</Steps>
+
+## Tablas de la base de datos
+
+El esquema PostgreSQL contiene 8 tablas relacionadas entre sí:
+
+| Tabla | Descripción | Campos clave |
+|---|---|---|
+| `USUARIO` | Cuentas del sistema (Admin/Guía) | `id`, `email` (único), `password_hash`, `rol`, `activo` |
+| `GESTOR` | Coordinadores de visitas | `id`, `nombre`, `tipo` (Institución Educativa / Particular), `localidad`, `provincia` |
+| `INSTITUCION` | Instituciones educativas visitantes | `id`, `nombre`, `localidad`, `provincia` |
+| `GRUPO` | Agrupación de visitantes | `id`, `tipo_visitante`, `nivel_educativo`, `tipo_grupo`, `gestor_id`, `institucion_id` |
+| `VISITA` | Evento de visita al túnel | `id`, `fecha`, `hora_inicio`, `tipo`, `cantidad_personas`, `estado`, `gestor_id`, `grupo_id` |
+| `DIAINHABIL` | Fechas bloqueadas para visitas | `id`, `fecha` (único), `descripcion` |
+| `CONFIGURACION` | Parámetros globales clave-valor | `clave` (PK), `valor` |
+| `LOGAUDITORIA` | Historial inmutable de acciones | `id`, `usuario_id`, `accion`, `fecha_hora` |
+
+Los tipos de visita soportados son `'Salón de visitas'` y `'Salón + Sala de Comando'`. Los estados posibles de una visita son `'Agendada'`, `'Cancelada'` y `'Realizada'`.
+
+## Seguridad y auditoría
+
+<Note>
+La seguridad es transversal a todas las capas. Los siguientes mecanismos operan de forma independiente y se refuerzan mutuamente.
+</Note>
+
+**Prevención de inyección SQL** — Ninguna consulta en los repositorios concatena strings de usuario. Todos los parámetros se pasan de forma aislada usando el mecanismo de parametrización del driver `pg` (`$1`, `$2`, ...). PostgreSQL nunca interpreta los valores de usuario como parte de la instrucción SQL.
+
+**Hash de contraseñas** — Las contraseñas nunca se almacenan en texto plano. `UsuarioService` usa `bcryptjs` con un factor de costo elevado para generar el hash en el alta y para compararlo en el login. El hash almacenado en `USUARIO.password_hash` no puede revertirse a la contraseña original.
+
+**Baja lógica de usuarios** — Los usuarios no se eliminan físicamente de la base de datos para preservar la integridad referencial de los registros de auditoría. En su lugar, el campo booleano `activo` se establece en `false`. Un usuario inactivo no puede autenticarse.
+
+**Log de auditoría inmutable** — La tabla `LOGAUDITORIA` es de sólo inserción. No existe endpoint en la API para modificar ni eliminar registros de auditoría. Cada operación de alta, edición, cancelación o cambio de configuración genera automáticamente una entrada asociada al `usuario_id` responsable y al timestamp exacto (`NOW()`).
+
+## Generación de PDF
+
+El servicio `export.service.ts` usa `puppeteer-core` junto con el binario `@sparticuz/chromium` para generar PDFs en el servidor sin depender de una instalación local de Chrome.
+
+El flujo de generación es:
+
+1. El controlador recibe la petición de exportación (ej. `GET /api/estadisticas/exportar/visita/:id`).
+2. `ExportService` construye una plantilla HTML en memoria con los datos de la visita o el reporte estadístico.
+3. `puppeteer-core` lanza una instancia headless de Chromium, carga la plantilla HTML y la imprime a PDF.
+4. El PDF binario se devuelve en la respuesta HTTP con el header `Content-Type: application/pdf`.
+
+Los tipos de exportación soportados son:
+
+| Tipo de reporte | Endpoint | Disponible para |
+|---|---|---|
+| Comprobante individual de visita | `GET /api/estadisticas/exportar/visita/:id` | Guía y Admin |
+| Reporte diario | `GET /api/estadisticas/exportar/diario` | Admin |
+| Reporte mensual | `GET /api/estadisticas/exportar` | Admin |
+| Reporte por rango de fechas | `GET /api/estadisticas/exportar/rango` | Admin |
+
+## API Georef Argentina
+
+El frontend consume directamente la **API de Normalización de Datos Geográficos de Argentina** (`georef.gob.ar`) para los campos de provincia y localidad en los formularios de Gestores, Grupos e Instituciones. Esta dependencia es exclusiva del cliente y no requiere configuración adicional en el backend.
+
+<Info>
+La API Georef es pública, sin autenticación, y devuelve provincias y municipios/localidades normalizados según los datos oficiales del Instituto Geográfico Nacional. Su uso garantiza consistencia en la nomenclatura geográfica de todos los registros.
+</Info>

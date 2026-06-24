@@ -1,0 +1,143 @@
+---
+title: "Registro, Edición y Cancelación de Visitas al Túnel"
+sidebarTitle: "Registro Visitas"
+description: "Guía completa para agendar un nuevo grupo, completar los campos obligatorios, entender las validaciones de aforo y gestionar cambios o cancelaciones."
+---
+
+El formulario de registro de visitas (`/nueva-visita`) concentra toda la lógica de alta de grupos en el sistema. Está organizado en tres secciones: datos del gestor, datos del grupo (institución o particulares) y datos del turno. Al confirmar, el backend ejecuta una cadena de cinco validaciones antes de persistir el registro; cualquier falla en esa cadena devuelve un error descriptivo que se muestra directamente en el formulario.
+
+## Tipos de visita disponibles
+
+El sistema acepta exactamente dos tipos de visita, definidos como constantes en `visitaTypes.ts` y validados también en el backend:
+
+| Tipo | Descripción |
+|---|---|
+| `Salón de visitas` | Visita estándar al salón de exposición |
+| `Salón + Sala de Comando` | Visita extendida que incluye el acceso a la Sala de Comando del túnel |
+
+## Campos del formulario
+
+### Campos obligatorios
+
+| Campo | Sección | Descripción |
+|---|---|---|
+| `gestor_id` | Gestor | ID del gestor responsable del grupo. Se puede crear uno nuevo en el mismo paso. |
+| `fecha` | Turno | Fecha de la visita en formato `YYYY-MM-DD`. |
+| `hora_inicio` | Turno | Hora de inicio del turno (entre 08:00 y 17:30, en intervalos de 30 min). |
+| `tipo` | Turno | Tipo de visita: `Salón de visitas` o `Salón + Sala de Comando`. |
+| `cantidad_personas` | Turno | Número de personas del grupo (entero mayor a cero). |
+| `tipo_visitante` | Grupo | `Institución` (educativa) o `Particulares`. |
+| `nivel_educativo` | Grupo (inst.) | Nivel del grupo institucional: Infantes, Primario, Secundario, Terciario, Universitario o Adultos Mayores. |
+| `institucion_id` | Grupo (inst.) | Institución educativa del grupo. Se puede crear una nueva en el mismo paso. |
+| `nombre` (grupo) | Grupo (part.) | Nombre del grupo particular (p. ej.: "Familia García"). |
+| `tipo_grupo` | Grupo (part.) | Composición del grupo: Menores, Adultos o Mixto. |
+| `telefono` / `email` | Grupo (part.) | Contacto obligatorio para grupos particulares. |
+| `localidad` / `provincia` | Grupo (part.) | Ubicación geográfica obligatoria para grupos particulares. |
+
+### Campos opcionales
+
+| Campo | Descripción |
+|---|---|
+| `tiene_cruce_tunel` | Booleano. Indica si el grupo realizará el cruce del túnel (solo disponible para grupos institucionales). |
+| `tiene_discapacidad` | Booleano. Si es `true`, el campo `discapacidad_detalle` pasa a ser **obligatorio**. |
+| `discapacidad_detalle` | Descripción de las necesidades de accesibilidad (p. ej.: "2 personas en silla de ruedas"). |
+| `observaciones` | Texto libre. Notas adicionales sobre el grupo o la visita. |
+| `empresa_institucion` | Nombre de la empresa/institución del gestor (solo al crear un gestor nuevo). |
+
+## Flujo de registro paso a paso
+
+<Steps>
+  <Step title="Seleccionar o crear el gestor">
+    Busca el gestor en el campo de búsqueda con autocompletado. Si el gestor no existe, haz clic en **"Nuevo"** para abrir el modal de creación de gestor, completar el formulario y guardar. El gestor recién creado se selecciona automáticamente.
+  </Step>
+  <Step title="Definir el tipo de grupo">
+    Elige entre **Institución** o **Particulares**. Esta selección determina qué sub-formulario se muestra y qué campos son obligatorios en el backend.
+  </Step>
+  <Step title="Completar los datos del grupo">
+    - **Institución**: busca o crea la institución educativa. Selecciona el nivel educativo del grupo.
+    - **Particulares**: ingresa el nombre del grupo, tipo (Menores / Adultos / Mixto), teléfono, email y ubicación con el selector de Georef.
+  </Step>
+  <Step title="Configurar el turno y la cantidad">
+    Ingresa fecha, hora de inicio, tipo de visita y cantidad de personas. Marca `tiene_cruce_tunel` y/o `tiene_discapacidad` si aplica. Si marcas discapacidad, el campo de detalle se vuelve obligatorio.
+  </Step>
+  <Step title="Revisar y confirmar">
+    Al hacer clic en **"Revisar y Agendar"**, el formulario valida los campos y abre un modal de confirmación con un resumen visual de todos los datos. Revisa el resumen y haz clic en **"Confirmar Visita"** para enviar `POST /api/visitas`.
+  </Step>
+  <Step title="Descarga automática del comprobante">
+    Si el registro es exitoso, el sistema descarga automáticamente el comprobante PDF de la visita (`Comprobante_visita_DD-MM-AAAA.pdf`) y redirige al dashboard del día agendado.
+  </Step>
+</Steps>
+
+## Validaciones del backend (flujo de 5 pasos)
+
+El servicio `AvailabilityService.validarDisponibilidad()` aplica las siguientes reglas en orden antes de insertar ningún registro:
+
+<Steps>
+  <Step title="Aforo diario máximo">
+    Suma todas las personas con visitas activas en la fecha. Si agregar el nuevo grupo supera la `capacidad_maxima` (**300 personas/día**), se rechaza con el mensaje: _"Aforo diario superado. Capacidad máxima: 300. Ya agendadas: X. Disponibles: Y."_
+  </Step>
+  <Step title="Día hábil">
+    Consulta la tabla `DiaInhabil`. Si la fecha está bloqueada, se rechaza con el mensaje: _"La fecha seleccionada es un día inhábil. No se pueden agendar visitas."_
+  </Step>
+  <Step title="Aforo por turno">
+    Suma las personas ya agendadas en ese horario exacto (fecha + hora_inicio). Si agregar el nuevo grupo supera la `capacidad_por_turno` (**80 personas/turno**), se rechaza con el mensaje: _"Capacidad del turno HH:MM superada. Máximo por turno: 80. Ya agendadas en ese turno: X. Disponibles: Y."_
+  </Step>
+  <Step title="INSERT de la visita">
+    Superadas las tres validaciones, se ejecuta la transacción de base de datos: primero se crea el gestor nuevo (si aplica), luego la institución nueva (si aplica), luego el grupo, y finalmente la visita, todo dentro de un `BEGIN … COMMIT`.
+  </Step>
+  <Step title="INSERT de auditoría">
+    Dentro de la misma transacción, se inserta un registro en `LogAuditoria` con la acción `"Registró visita ID X para 'Nombre del grupo'"`. Si algún paso falla, toda la transacción hace `ROLLBACK`.
+  </Step>
+</Steps>
+
+<Warning>
+  Los errores de validación de aforo se devuelven con HTTP `400` y se muestran directamente en el formulario. Si el mensaje indica que hay **0 personas disponibles** en el turno o en el día, deberás seleccionar un horario diferente o una fecha distinta. No es posible superar los límites configurados desde la UI.
+</Warning>
+
+## Campos de ubicación con Georef
+
+Los campos de localidad y provincia (tanto para gestores como para grupos particulares e instituciones) utilizan el componente `UbicacionSelector`, que se integra con la **API Georef de Argentina** (`apis.datos.gob.ar/georef/api`). Al escribir en el campo, el selector muestra sugerencias de localidades y provincias argentinas en tiempo real. Para grupos internacionales, el campo `pais` permite ingresar texto libre.
+
+## Editar una visita existente
+
+Desde la página de detalle de visita (`/visitas/:id`), el botón **"Editar"** carga el formulario pre-poblado con los datos actuales. El endpoint de actualización es `PUT /api/visitas/:id`.
+
+<Info>
+  Las mismas **tres validaciones de aforo y día hábil se re-evalúan** si se cambia la fecha, la hora de inicio o la cantidad de personas. Al validar, el sistema excluye automáticamente la visita que se está editando (`visitaIdAExcluir`) para que su propio cupo no sea contado como conflicto.
+</Info>
+
+Los campos que se pueden modificar incluyen: fecha, hora de inicio, cantidad de personas, estado, tipo de visita, cruce de túnel, accesibilidad, observaciones, gestor (existente o nuevo) e institución (solo para visitas de tipo Institución).
+
+## Cancelar una visita
+
+La cancelación se realiza mediante `PATCH /api/visitas/:id/cancelar`. Desde la UI, el botón **"Cancelar visita"** disponible en la página de detalle abre un diálogo que solicita un motivo (opcional).
+
+```json
+// Cuerpo de la solicitud PATCH /api/visitas/:id/cancelar
+{
+  "motivo": "El grupo no pudo asistir por lluvia"
+}
+```
+
+<Warning>
+  Una visita ya cancelada **no puede cancelarse nuevamente**. El backend devuelve `400` con el mensaje _"La visita ya se encuentra cancelada"_ si se intenta cancelar una visita cuyo estado ya es `"Cancelada"`. La cancelación queda registrada en `LogAuditoria` con el motivo indicado.
+</Warning>
+
+## Página de detalle y comprobante PDF
+
+La página `/visitas/:id` muestra todos los datos de la visita organizados en tarjetas: turno, gestor, grupo, institución (si aplica) y estado. Desde esta página se pueden realizar las siguientes acciones:
+
+<CardGroup cols={2}>
+  <Card title="Descargar comprobante" icon="file-down" href="/guias/reportes-exportacion">
+    El botón "Imprimir comprobante" llama a `GET /api/estadisticas/exportar/visita/:id` y descarga `Comprobante_visita_DD-MM-AAAA.pdf` con todos los datos de la reserva.
+  </Card>
+  <Card title="Editar visita" icon="pencil" href="/guias/registro-visitas">
+    Carga el formulario de edición pre-poblado. Las validaciones de aforo se re-aplican si se modifican fecha, hora o cantidad de personas.
+  </Card>
+  <Card title="Cancelar visita" icon="x-circle" href="/guias/registro-visitas">
+    Abre un prompt para ingresar el motivo de cancelación. La visita pasa a estado "Cancelada" y ya no se contabiliza en los aforos diarios.
+  </Card>
+  <Card title="Volver al dashboard" icon="arrow-left" href="/guias/dashboard">
+    El botón de retroceso navega de vuelta al Dashboard Operativo del día correspondiente a la visita.
+  </Card>
+</CardGroup>

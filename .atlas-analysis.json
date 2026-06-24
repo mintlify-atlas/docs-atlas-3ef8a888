@@ -1,0 +1,123 @@
+{
+  "projectType": "saas",
+  "projectName": "Túnel Subfluvial — Gestor de Visitas",
+  "projectDescription": "A full-stack visit management system for the Túnel Subfluvial, enabling staff to register, schedule, and track visitor groups with capacity control, PDF reporting, and audit logging.",
+  "theme": "almond",
+  "primaryColor": "#101e73",
+  "lightColor": "#040405",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guía de Usuario",
+        "groups": [
+          {
+            "group": "Primeros Pasos",
+            "pages": [
+              "introduccion",
+              "instalacion",
+              "arquitectura"
+            ]
+          },
+          {
+            "group": "Funcionalidades",
+            "pages": [
+              "guias/autenticacion",
+              "guias/dashboard",
+              "guias/registro-visitas",
+              "guias/gestion-gestores",
+              "guias/calendario",
+              "guias/reportes-exportacion"
+            ]
+          },
+          {
+            "group": "Administración",
+            "pages": [
+              "guias/gestion-usuarios",
+              "guias/configuracion-sistema",
+              "guias/dias-inhabiles",
+              "guias/auditoria"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Referencia API",
+        "groups": [
+          {
+            "group": "Visión General",
+            "pages": [
+              "api/descripcion-general",
+              "api/autenticacion"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/visitas",
+              "api/gestores",
+              "api/usuarios",
+              "api/estadisticas",
+              "api/configuracion",
+              "api/dias-inhabiles",
+              "api/instituciones",
+              "api/auditoria"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Registro y gestión completa del ciclo de vida de visitas (Agendada → Realizada/Cancelada)",
+    "Control de aforo diario y por turno con validación en tiempo real",
+    "Dashboard operativo diario con vista de turnos y estados por color",
+    "Calendario mensual de ocupación para planificación",
+    "Gestión de gestores e instituciones educativas con integración Georef API",
+    "Exportación de reportes PDF (diario, mensual, por rango, comprobante individual)",
+    "Panel de estadísticas gerenciales con KPIs y evolución temporal",
+    "Gestión de usuarios con roles (Admin / Guía) y baja lógica",
+    "Días inhábiles configurables para bloquear fechas no disponibles",
+    "Auditoría inmutable de todas las acciones del sistema",
+    "Autenticación JWT con cierre de sesión automático por inactividad configurable"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/login",
+    "GET /api/visitas?fecha=YYYY-MM-DD",
+    "GET /api/visitas/rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD",
+    "GET /api/visitas/historial?page=1&pageSize=50",
+    "GET /api/visitas/calendario?anio=YYYY&mes=MM",
+    "GET /api/visitas/:id",
+    "POST /api/visitas",
+    "PUT /api/visitas/:id",
+    "PATCH /api/visitas/:id/cancelar",
+    "GET /api/gestores",
+    "POST /api/gestores",
+    "PUT /api/gestores/:id",
+    "DELETE /api/gestores/:id",
+    "GET /api/usuarios",
+    "POST /api/usuarios",
+    "PUT /api/usuarios/:id",
+    "PATCH /api/usuarios/:id/desactivar",
+    "PATCH /api/usuarios/:id/reactivar",
+    "PUT /api/usuarios/:id/password",
+    "GET /api/usuarios/:id/perfil",
+    "PUT /api/usuarios/:id/perfil",
+    "GET /api/estadisticas/admin?anio=YYYY&mes=MM",
+    "GET /api/estadisticas/rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD",
+    "GET /api/estadisticas/exportar?anio=YYYY&mes=MM",
+    "GET /api/estadisticas/exportar/diario?fecha=YYYY-MM-DD",
+    "GET /api/estadisticas/exportar/rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD",
+    "GET /api/estadisticas/exportar/visita/:id",
+    "GET /api/estadisticas/exportar/informe?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&secciones=...",
+    "GET /api/configuracion/:clave",
+    "PUT /api/configuracion/:clave",
+    "GET /api/dias-inhabiles",
+    "POST /api/dias-inhabiles",
+    "DELETE /api/dias-inhabiles/:id",
+    "GET /api/instituciones",
+    "POST /api/instituciones",
+    "GET /api/auditoria",
+    "GET /api/health"
+  ]
+}

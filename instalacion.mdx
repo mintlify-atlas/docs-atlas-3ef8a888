@@ -1,0 +1,253 @@
+---
+title: "Instalación y Configuración del Gestor de Visitas"
+sidebarTitle: "Instalación"
+description: "Requisitos, variables de entorno y comandos para levantar el backend Express, el frontend React y PostgreSQL en desarrollo y producción."
+---
+
+Esta guía cubre la instalación completa del sistema desde cero: clonado del repositorio, configuración de variables de entorno para el backend y el frontend, ejecución de migraciones de base de datos y arranque de ambos servidores. Al finalizar tendrás el backend corriendo en `http://localhost:3000` y el frontend en `http://localhost:5173`.
+
+## Requisitos previos
+
+Antes de comenzar, asegúrate de tener instalado en tu máquina:
+
+| Herramienta | Versión mínima | Notas |
+|---|---|---|
+| **Node.js** | `>= 20.0.0` | Requerido explícitamente por el `engines` field del `package.json` del frontend |
+| **npm** | `>= 10` | Incluido con Node.js 20+ |
+| **PostgreSQL** | `>= 14` | Necesitas acceso a un servidor PostgreSQL con permisos para crear bases de datos |
+
+<Tip>
+Podés verificar tus versiones ejecutando `node -v`, `npm -v` y `psql --version` en tu terminal.
+</Tip>
+
+## Instalación paso a paso
+
+<Steps>
+
+  <Step title="Clonar el repositorio">
+    Clona el repositorio en tu máquina local y accede al directorio raíz del proyecto:
+
+    ```bash
+    git clone https://github.com/JuanM84/gestor-visitas.git
+    cd gestor-visitas
+    ```
+
+    La estructura raíz del proyecto contiene dos carpetas principales:
+
+    ```
+    gestor-visitas/
+    ├── backend/    # Node.js + Express 5 + TypeScript
+    └── frontend/   # React 19 + Vite + TypeScript
+    ```
+  </Step>
+
+  <Step title="Configurar la base de datos PostgreSQL">
+    Creá una base de datos vacía en tu servidor PostgreSQL. Podés hacerlo desde `psql` o desde cualquier cliente gráfico (pgAdmin, DBeaver, etc.):
+
+    ```sql
+    CREATE DATABASE tunel_subfluvial;
+    ```
+
+    Luego ejecutá el archivo de estructura de base de datos incluido en el repositorio para crear todas las tablas (`USUARIO`, `GESTOR`, `INSTITUCION`, `GRUPO`, `VISITA`, `DIAINHABIL`, `CONFIGURACION`, `LOGAUDITORIA`) y sus relaciones:
+
+    ```bash
+    psql -U tu_usuario -d tunel_subfluvial -f BD_ESTRUCTURA.sql
+    ```
+
+    <Note>
+    La tabla `CONFIGURACION` se pobla con los valores por defecto durante la migración: `capacidad_maxima = 300`, `capacidad_por_turno = 80` y `session_timeout_minutes = 30`. Podés modificar estos valores desde la UI de Configuraciones una vez que el sistema esté en funcionamiento.
+    </Note>
+  </Step>
+
+  <Step title="Configurar las variables de entorno del backend">
+    Dentro de la carpeta `backend/`, creá el archivo `.env` copiando el ejemplo a continuación y completando los valores con tus credenciales:
+
+    ```bash
+    cd backend
+    cp .env.example .env   # si existe, o crealo manualmente
+    ```
+
+    ```ini
+    # backend/.env
+
+    # Puerto en el que escucha el servidor Express
+    PORT=3000
+
+    # Cadena de conexión completa a PostgreSQL (opción A)
+    DATABASE_URL=postgresql://usuario:contraseña@localhost:5432/tunel_subfluvial
+
+    # --- O bien, variables individuales de conexión (opción B) ---
+    PGHOST=localhost
+    PGPORT=5432
+    PGDATABASE=tunel_subfluvial
+    PGUSER=tu_usuario
+    PGPASSWORD=tu_contraseña
+
+    # Clave secreta para firmar y verificar los tokens JWT
+    # Usá una cadena larga y aleatoria (mínimo 32 caracteres)
+    JWT_SECRET=cambia_esto_por_un_secreto_muy_largo_y_aleatorio
+
+    # URL del frontend (usada por el middleware CORS para autorizar el origen)
+    FRONTEND_URL=http://localhost:5173
+    ```
+
+    <Warning>
+    Nunca commitees el archivo `.env` al repositorio. Asegurate de que `.env` esté incluido en el `.gitignore`. El valor de `JWT_SECRET` debe ser un string criptográficamente aleatorio de al menos 32 caracteres.
+    </Warning>
+  </Step>
+
+  <Step title="Instalar dependencias del backend">
+    Desde la carpeta `backend/`, instalá las dependencias de Node.js:
+
+    <CodeGroup>
+      ```bash npm
+      cd backend
+      npm install
+      ```
+    </CodeGroup>
+
+    Las dependencias de producción principales que se instalan son:
+
+    | Paquete | Versión | Propósito |
+    |---|---|---|
+    | `express` | `^5.2.1` | Framework HTTP |
+    | `pg` | `^8.20.0` | Driver PostgreSQL (sin ORM) |
+    | `jsonwebtoken` | `^9.0.3` | Emisión y verificación de JWT |
+    | `bcryptjs` | `^3.0.3` | Hash de contraseñas |
+    | `puppeteer-core` | `^25.1.0` | Generación de PDFs headless |
+    | `@sparticuz/chromium` | `^149.0.0` | Binario Chromium para Puppeteer |
+    | `cors` | `^2.8.6` | Middleware CORS |
+    | `dotenv` | `^17.4.2` | Carga de variables de entorno |
+  </Step>
+
+  <Step title="Configurar las variables de entorno del frontend">
+    Dentro de la carpeta `frontend/`, creá el archivo `.env` con la URL base de la API del backend:
+
+    ```bash
+    cd ../frontend
+    ```
+
+    ```ini
+    # frontend/.env
+
+    # URL base de la API del backend (sin barra al final)
+    VITE_API_URL=http://localhost:3000
+    ```
+
+    Esta variable es consumida por el cliente HTTP del frontend mediante `import.meta.env.VITE_API_URL` para construir las URLs de todas las peticiones a la API.
+
+    <Tip>
+    Vite solo expone las variables de entorno cuyo nombre empiece con el prefijo `VITE_`. Cualquier variable sin ese prefijo no estará disponible en el código del navegador.
+    </Tip>
+  </Step>
+
+  <Step title="Instalar dependencias del frontend">
+    Desde la carpeta `frontend/`, instalá las dependencias del proyecto React:
+
+    <CodeGroup>
+      ```bash npm
+      cd frontend
+      npm install
+      ```
+    </CodeGroup>
+
+    Las dependencias principales del frontend son:
+
+    | Paquete | Versión | Propósito |
+    |---|---|---|
+    | `react` | `^19.2.5` | Librería de UI |
+    | `react-dom` | `^19.2.5` | Renderer DOM de React |
+    | `react-router-dom` | `^7.14.2` | Enrutamiento SPA |
+    | `tailwindcss` | `^3.4.19` | Utilidades de estilo CSS |
+    | `vite` | `^8.0.10` | Bundler y servidor de desarrollo |
+    | `xlsx` | `^0.18.5` | Exportación a Excel |
+  </Step>
+
+  <Step title="Iniciar los servidores en modo desarrollo">
+    Necesitás dos terminales abiertas (o un gestor de procesos como `tmux`), una para el backend y otra para el frontend:
+
+    <CodeGroup>
+      ```bash Backend (terminal 1)
+      cd backend
+      npm run dev
+      # → 🚀 Servidor corriendo en http://localhost:3000
+      ```
+
+      ```bash Frontend (terminal 2)
+      cd frontend
+      npm run dev
+      # → Local: http://localhost:5173/
+      ```
+    </CodeGroup>
+
+    El backend usa `ts-node-dev` con `--respawn --transpile-only`, lo que reinicia el servidor automáticamente ante cualquier cambio en los archivos `.ts`. El frontend usa el servidor HMR de Vite para recarga en caliente.
+  </Step>
+
+</Steps>
+
+## Verificación del entorno
+
+Una vez que ambos servidores estén corriendo, podés confirmar que el backend responde correctamente consultando el endpoint de salud:
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+La respuesta esperada es:
+
+```json
+{
+  "status": "ok",
+  "message": "API del Túnel Subfluvial funcionando"
+}
+```
+
+Si recibís esa respuesta, el servidor Express está operativo y conectado. A continuación abrí `http://localhost:5173` en tu navegador para acceder a la interfaz React.
+
+## Referencia de variables de entorno
+
+### Backend (`backend/.env`)
+
+| Variable | Requerida | Valor por defecto | Descripción |
+|---|---|---|---|
+| `PORT` | No | `3000` | Puerto TCP en el que escucha Express |
+| `DATABASE_URL` | Sí* | — | URI completa de conexión a PostgreSQL |
+| `PGHOST` | Sí* | — | Host del servidor PostgreSQL |
+| `PGPORT` | No | `5432` | Puerto PostgreSQL |
+| `PGDATABASE` | Sí* | — | Nombre de la base de datos |
+| `PGUSER` | Sí* | — | Usuario de PostgreSQL |
+| `PGPASSWORD` | Sí* | — | Contraseña del usuario PostgreSQL |
+| `JWT_SECRET` | **Sí** | — | Secreto para firmar tokens JWT (mínimo 32 chars) |
+| `FRONTEND_URL` | No | `http://localhost:5173` | Origen permitido en la política CORS |
+
+<Note>
+Para la conexión a PostgreSQL usá **`DATABASE_URL`** (opción A) **o** las variables `PG*` individuales (opción B). No es necesario definir ambas; el driver `pg` prioriza las variables individuales si `DATABASE_URL` no está definida.
+</Note>
+
+### Frontend (`frontend/.env`)
+
+| Variable | Requerida | Valor por defecto | Descripción |
+|---|---|---|---|
+| `VITE_API_URL` | **Sí** | — | URL base de la API REST del backend (sin `/` al final) |
+
+## Build de producción
+
+Para generar los artefactos de producción optimizados de ambas capas:
+
+<CodeGroup>
+  ```bash Backend
+  cd backend
+  npm run build   # Compila TypeScript a JavaScript en dist/
+  npm run start   # Inicia el servidor con NODE_ENV=production
+  ```
+
+  ```bash Frontend
+  cd frontend
+  npm run build   # Genera los estáticos optimizados en dist/
+  npm run preview # Previsualiza el build localmente
+  ```
+</CodeGroup>
+
+<Warning>
+En producción, asegurate de que `FRONTEND_URL` en el backend apunte al dominio real donde está desplegado el frontend (por ejemplo, `https://visitas.tunelsubfluvial.gob.ar`). De lo contrario, el navegador bloqueará las peticiones por la política CORS.
+</Warning>

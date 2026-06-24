@@ -1,0 +1,202 @@
+---
+title: "Gestores API — Túnel Subfluvial Gestor de Visitas"
+sidebarTitle: "Gestores"
+description: "Manage visit coordinators (gestores): list contacts, register new organizers, update details, and remove records. Delete requires Admin privileges."
+---
+
+Gestores are the external contacts — institutions, agencies, or individuals — who coordinate and book visits to the Túnel Subfluvial. Every visit must be linked to a gestor. These endpoints let authenticated users manage the gestor directory. All requests require a valid `Authorization: Bearer <token>` header. Only the DELETE endpoint additionally requires the `Admin` role.
+
+---
+
+## GET /api/gestores
+
+Returns a flat list of all gestores registered in the system. There is no pagination; the full set is returned in a single response. Use this endpoint to populate dropdowns and search interfaces.
+
+```bash
+curl -X GET "https://api.example.com/api/gestores" \
+  -H "Authorization: Bearer <token>"
+```
+
+<ResponseField name="(array)" type="array">
+  Array of gestor objects. Each element contains the fields listed below.
+</ResponseField>
+<ResponseField name="id" type="number">
+  Unique gestor identifier.
+</ResponseField>
+<ResponseField name="nombre" type="string">
+  Full name of the gestor or contact person.
+</ResponseField>
+<ResponseField name="empresa_institucion" type="string">
+  Organisation or institution the gestor represents, if applicable.
+</ResponseField>
+<ResponseField name="telefono" type="string">
+  Contact phone number.
+</ResponseField>
+<ResponseField name="email" type="string">
+  Contact email address.
+</ResponseField>
+<ResponseField name="localidad" type="string">
+  City or locality.
+</ResponseField>
+<ResponseField name="provincia" type="string">
+  Province.
+</ResponseField>
+<ResponseField name="pais" type="string">
+  Country.
+</ResponseField>
+<ResponseField name="tipo" type="string">
+  Gestor category. One of: `Institución Educativa`, `Agencia de Turismo`, `Club / Asociación`, or `Particular / Organismo Público`.
+</ResponseField>
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Success — full gestor list returned |
+| `401`  | Missing or invalid token |
+| `500`  | Internal server error |
+
+---
+
+## POST /api/gestores
+
+Creates a new gestor record. `nombre` is the only strictly required field. If `tipo` is supplied it must match one of the four accepted values exactly; any other string is rejected with a `400` error.
+
+<ParamField body="nombre" type="string" required>
+  Full name of the gestor. Cannot be blank.
+</ParamField>
+<ParamField body="empresa_institucion" type="string">
+  Name of the organisation or institution represented.
+</ParamField>
+<ParamField body="telefono" type="string">
+  Contact phone number.
+</ParamField>
+<ParamField body="email" type="string">
+  Contact email address.
+</ParamField>
+<ParamField body="localidad" type="string">
+  City or locality.
+</ParamField>
+<ParamField body="provincia" type="string">
+  Province.
+</ParamField>
+<ParamField body="pais" type="string">
+  Country.
+</ParamField>
+<ParamField body="tipo" type="string">
+  Gestor category. Accepted values: `Institución Educativa`, `Agencia de Turismo`, `Club / Asociación`, `Particular / Organismo Público`.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Confirmation message: `"Gestor creado exitosamente"`.
+</ResponseField>
+<ResponseField name="gestor" type="object">
+  The newly created gestor object as persisted in the database.
+</ResponseField>
+
+```bash
+curl -X POST "https://api.example.com/api/gestores" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "Lucía Fernández",
+    "empresa_institucion": "Escuela Técnica N°5",
+    "telefono": "+54 343 4123456",
+    "email": "lucia.fernandez@et5.edu.ar",
+    "localidad": "Paraná",
+    "provincia": "Entre Ríos",
+    "pais": "Argentina",
+    "tipo": "Institución Educativa"
+  }'
+```
+
+| Status | Meaning |
+|--------|---------|
+| `201`  | Gestor created — returns `{ mensaje, gestor }` |
+| `400`  | Missing `nombre`, empty `nombre`, or unrecognised `tipo` value |
+| `401`  | Missing or invalid token |
+
+---
+
+## PUT /api/gestores/:id
+
+Updates the data of an existing gestor. Only the fields included in the request body are changed; omitted fields retain their current values. The same `tipo` validation that applies to POST also applies here.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the gestor to update.
+</ParamField>
+<ParamField body="nombre" type="string">
+  Updated name. Cannot be an empty string if provided.
+</ParamField>
+<ParamField body="empresa_institucion" type="string">
+  Updated organisation name.
+</ParamField>
+<ParamField body="telefono" type="string">
+  Updated phone number.
+</ParamField>
+<ParamField body="email" type="string">
+  Updated email address.
+</ParamField>
+<ParamField body="localidad" type="string">
+  Updated city or locality.
+</ParamField>
+<ParamField body="provincia" type="string">
+  Updated province.
+</ParamField>
+<ParamField body="pais" type="string">
+  Updated country.
+</ParamField>
+<ParamField body="tipo" type="string">
+  Updated category. Must be one of the four accepted values if provided.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Confirmation message: `"Gestor actualizado exitosamente"`.
+</ResponseField>
+<ResponseField name="gestor" type="object">
+  The full updated gestor object as persisted in the database.
+</ResponseField>
+
+```bash
+curl -X PUT "https://api.example.com/api/gestores/12" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "telefono": "+54 343 4987654",
+    "email": "lucia.fernandez@nuevodomain.ar"
+  }'
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Gestor updated — returns `{ mensaje, gestor }` |
+| `400`  | Empty `nombre`, unrecognised `tipo`, or other service-layer validation error |
+| `401`  | Missing or invalid token |
+
+---
+
+## DELETE /api/gestores/:id
+
+Permanently deletes a gestor record. This operation requires the `Admin` role in addition to a valid token. Attempting to delete a gestor that is linked to existing visits may result in a service-layer error depending on database constraints.
+
+<Warning>
+  This endpoint requires the `Admin` role. Requests from authenticated non-Admin users will receive a `403 Forbidden` response.
+</Warning>
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the gestor to delete.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Confirmation message: `"Gestor eliminado exitosamente"`.
+</ResponseField>
+
+```bash
+curl -X DELETE "https://api.example.com/api/gestores/12" \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Gestor deleted — returns `{ mensaje }` |
+| `400`  | Service-layer error (e.g. gestor has associated visits) |
+| `401`  | Missing or invalid token |
+| `403`  | Authenticated user does not have the `Admin` role |

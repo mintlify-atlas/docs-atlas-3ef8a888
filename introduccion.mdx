@@ -1,0 +1,128 @@
+---
+title: "Túnel Subfluvial: Sistema de Gestión de Visitas"
+sidebarTitle: "Introducción"
+description: "Plataforma SaaS full-stack para agendar, controlar el aforo y auditar visitas guiadas al Túnel Subfluvial en Argentina."
+---
+
+El **Sistema de Gestión de Visitas del Túnel Subfluvial** es una aplicación web full-stack diseñada para administrar el ciclo completo de las visitas guiadas a la infraestructura subfluvial. Permite al personal del túnel registrar grupos, controlar el aforo diario y por turno, generar comprobantes PDF y mantener un historial de auditoría inmutable de cada operación. La plataforma está orientada a dos tipos de usuarios internos —el **Administrador** y el **Guía**— quienes interactúan con el sistema a través de una interfaz web React accesible desde cualquier navegador moderno.
+
+## Roles de usuario y permisos
+
+El sistema implementa control de acceso basado en roles (RBAC). Cada cuenta pertenece a uno de los siguientes roles, cuya diferencia principal es el alcance sobre la configuración y los reportes administrativos:
+
+| Rol | Descripción | Acceso exclusivo |
+|---|---|---|
+| **Admin** | Gestión completa del sistema | Gestión de usuarios, configuración de aforos y timeout de sesión, estadísticas avanzadas, reportes PDF, logs de auditoría, días inhábiles |
+| **Guía** | Operador de visitas del día a día | Registro, edición y cancelación de visitas; gestión de gestores e instituciones; historial de visitas; exportación de comprobantes individuales |
+
+> El rol **Admin** hereda todas las capacidades del rol **Guía**. Un administrador puede realizar cualquier acción que un Guía puede realizar.
+
+## Casos de uso implementados
+
+El sistema contempla **17 casos de uso** especificados (CU-001 a CU-017). De ellos, **16 están completamente implementados** y 1 está pendiente de desarrollo (CU-009 Agendar Descanso). A continuación se agrupan por área funcional:
+
+### Autenticación y sesión
+- **CU-001 — Autenticarse:** Login por email/contraseña con emisión de JWT y cierre automático de sesión por inactividad (`session_timeout_minutes`, por defecto 30 min).
+
+### Gestión de visitas (Guía y Admin)
+- **CU-003 — Registrar Visita:** Alta de nuevas visitas con validaciones cruzadas de aforo diario y por turno, integración con la API Georef de Argentina para provincias/localidades, y creación en línea de gestores e instituciones.
+- **CU-004 — Modificar Visita:** Edición con re-evaluación de disponibilidad y aforo si se modifica la fecha u hora.
+- **CU-005 — Cancelar Visita:** Cancelación con registro de motivo y generación automática de entrada en el log de auditoría.
+- **CU-008 — Exportar Confirmación PDF:** Descarga del comprobante individual de una visita en formato PDF generado con Puppeteer.
+
+### Dashboard y calendario
+- **CU-002 — Ver Dashboard:** Grilla diaria interactiva con estados por colores, soporte de múltiples grupos por turno y acceso rápido a las acciones del día.
+- **CU-015 — Dashboard Admin:** Vista integral con KPIs, evolución mensual y rankings, con control de período.
+
+### Gestión de entidades
+- **CU-006 — Gestionar Gestores:** CRUD completo de gestores con filtros dinámicos y validación geográfica.
+- **CU-007 — Ver Historial:** Listado paginado de visitas con búsqueda rápida.
+
+### Configuración y administración (solo Admin)
+- **CU-010 — Gestionar Usuarios:** Altas, bajas lógicas, cambio de contraseña y reasignación de roles.
+- **CU-011 — Configurar Sistema:** Ajuste de parámetros globales mediante esquema clave-valor.
+- **CU-012 — Gestionar Días Inhábiles:** Bloqueo de fechas específicas que impide el registro de visitas en esos días.
+- **CU-013 — Generar Estadísticas:** KPIs, gráficos de barras con escalado dinámico de aforo y rankings de grupos e instituciones.
+- **CU-014 — Ver Logs de Auditoría:** Historial inmutable cronológico de todas las operaciones del sistema.
+- **CU-016 — Exportar Reportes:** Exportación en PDF de reportes mensuales, diarios y por rango de fechas personalizado.
+- **CU-017 — Configurar Visitas:** Control directo del aforo máximo diario (`capacidad_maxima`) y del timeout de sesión desde la UI.
+
+<Note>
+**CU-009 — Agendar Descanso** es el único caso de uso pendiente de implementación. No existe aún la entidad, el CRUD ni el endpoint en backend para bloquear un slot horario específico con fines operativos (pausa o almuerzo).
+</Note>
+
+## Características clave
+
+<CardGroup cols={2}>
+  <Card
+    title="Control de aforo dual"
+    icon="users"
+    href="/arquitectura#modelo-de-capacidad-dual"
+  >
+    Dos niveles de capacidad configurables en tiempo real: límite diario (300 personas/día por defecto) y límite por turno (80 personas/turno). Ambos se ajustan desde la UI sin reiniciar el servidor.
+  </Card>
+  <Card
+    title="Exportación PDF"
+    icon="file-pdf"
+    href="/arquitectura#generacion-de-pdf"
+  >
+    Comprobantes individuales de visita y reportes estadísticos (diarios, mensuales, por rango) generados con `puppeteer-core` y `@sparticuz/chromium` en el servidor.
+  </Card>
+  <Card
+    title="Auditoría inmutable"
+    icon="shield-check"
+    href="/arquitectura#seguridad-y-auditoria"
+  >
+    Cada alta, edición o cancelación genera automáticamente una entrada en la tabla `LOGAUDITORIA` con el usuario responsable, la acción y la marca temporal exacta. Los registros no se pueden modificar ni eliminar.
+  </Card>
+  <Card
+    title="Gestión de sesión"
+    icon="clock"
+    href="/arquitectura#autenticacion"
+  >
+    El tiempo de expiración de la sesión JWT es completamente configurable desde la base de datos mediante la clave `session_timeout_minutes`. El frontend detecta la inactividad y cierra la sesión automáticamente.
+  </Card>
+  <Card
+    title="Integración geográfica"
+    icon="map-pin"
+    href="/arquitectura#api-georef"
+  >
+    Autocompletado de provincias y localidades argentinas mediante la **API de Georreferenciación de Argentina (georef.gob.ar)**, garantizando consistencia en los datos de ubicación de gestores, grupos e instituciones.
+  </Card>
+  <Card
+    title="Múltiples grupos por turno"
+    icon="calendar-days"
+    href="/arquitectura#multiples-grupos-por-turno"
+  >
+    El sistema permite registrar más de un grupo en el mismo slot de fecha y hora, siempre que no se supere el límite por turno. El dashboard muestra el cupo disponible restante en cada slot.
+  </Card>
+</CardGroup>
+
+## Tecnologías del stack
+
+El sistema está compuesto por tres capas independientes que se comunican a través de una API REST:
+
+| Capa | Tecnología | Puerto |
+|---|---|---|
+| **Frontend** | React 19 + TypeScript + Vite + Tailwind CSS | 5173 |
+| **Backend** | Node.js + TypeScript + Express 5 | 3000 |
+| **Base de datos** | PostgreSQL (driver `pg`, sin ORM) | 5432 |
+
+## Próximos pasos
+
+<CardGroup cols={2}>
+  <Card
+    title="Instalación"
+    icon="wrench"
+    href="/instalacion"
+  >
+    Guía paso a paso para clonar el repositorio, configurar las variables de entorno y levantar el proyecto en modo desarrollo o producción.
+  </Card>
+  <Card
+    title="Arquitectura"
+    icon="diagram-project"
+    href="/arquitectura"
+  >
+    Descripción técnica de la arquitectura en capas, el modelo de capacidad dual, el flujo de autenticación JWT y la generación de PDFs.
+  </Card>
+</CardGroup>

@@ -1,0 +1,293 @@
+---
+title: "Autenticación JWT en la API del Túnel Subfluvial"
+sidebarTitle: "Autenticación"
+description: "Cómo iniciar sesión, obtener el token JWT y autenticar cada petición con Bearer token. Roles Admin y Guía, expiración y errores comunes."
+---
+
+El sistema de autenticación de la API se basa en **JSON Web Tokens (JWT)**. El flujo es simple: el cliente envía sus credenciales al único endpoint público de la API — `POST /api/auth/login` —, recibe un token firmado y lo adjunta a todas las peticiones posteriores en la cabecera `Authorization`. No existe registro de sesiones en el servidor; la validez se determina enteramente a partir del token.
+
+## POST /api/auth/login
+
+Este es el **único endpoint que no requiere autenticación**. Recibe las credenciales del usuario, las verifica contra la base de datos y, si son correctas, devuelve un token JWT junto con los datos básicos del usuario.
+
+<Note>
+  Si el usuario está marcado como inactivo en el sistema, el login será rechazado con 401 aunque las credenciales sean correctas. Contacta al administrador para reactivar la cuenta.
+</Note>
+
+### Petición
+
+**`POST /api/auth/login`**
+
+```http
+POST /api/auth/login HTTP/1.1
+Content-Type: application/json
+```
+
+#### Cuerpo de la petición
+
+<ParamField body="email" type="string" required>
+  Dirección de correo electrónico del usuario registrado en el sistema. Se normaliza (trim) antes de la búsqueda.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Contraseña en texto plano. El servidor la compara contra el hash bcrypt almacenado en la base de datos.
+</ParamField>
+
+```json
+{
+  "email": "admin@tunel.com",
+  "password": "mi_contraseña_segura"
+}
+```
+
+### Respuestas
+
+<Tabs>
+  <Tab title="200 — Éxito">
+    El servidor devuelve el token JWT y los datos del usuario autenticado.
+
+    <ResponseField name="token" type="string" required>
+      Token JWT firmado. Debe incluirse en todas las peticiones posteriores como `Authorization: Bearer <token>`.
+    </ResponseField>
+
+    <ResponseField name="usuario" type="object" required>
+      Datos del usuario autenticado.
+
+      <Expandable title="Campos de usuario">
+        <ResponseField name="usuario.id" type="string | number">
+          Identificador único del usuario en la base de datos.
+        </ResponseField>
+        <ResponseField name="usuario.nombre" type="string">
+          Nombre completo del usuario.
+        </ResponseField>
+        <ResponseField name="usuario.email" type="string">
+          Dirección de correo electrónico del usuario.
+        </ResponseField>
+        <ResponseField name="usuario.rol" type="string">
+          Rol del usuario en el sistema: `Admin` o `Guía`.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    ```json
+    {
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "usuario": {
+        "id": 1,
+        "nombre": "Juan García",
+        "email": "admin@tunel.com",
+        "rol": "Admin"
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="400 — Campos faltantes">
+    Cuando `email` o `password` no están presentes en el cuerpo de la petición.
+
+    ```json
+    {
+      "error": "Email y contraseña son requeridos"
+    }
+    ```
+  </Tab>
+  <Tab title="401 — Credenciales inválidas">
+    Cuando las credenciales son incorrectas o el usuario está inactivo.
+
+    ```json
+    {
+      "error": "Credenciales inválidas"
+    }
+    ```
+
+    ```json
+    {
+      "error": "El usuario está inactivo. Contacte al administrador."
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Ejemplo con curl
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@tunel.com", "password": "mi_contraseña_segura"}'
+```
+
+## Cómo usar el token en peticiones posteriores
+
+Una vez obtenido el token, inclúyelo en la cabecera `Authorization` de **todas las peticiones** a endpoints protegidos, usando el esquema `Bearer`.
+
+```http
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### Ejemplo completo: login y petición autenticada
+
+```bash
+# 1. Iniciar sesión y capturar el token
+TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "admin@tunel.com", "password": "mi_contraseña_segura"}' \
+  | jq -r '.token')
+
+echo "Token obtenido: $TOKEN"
+
+# 2. Usar el token en una petición protegida
+curl -X GET http://localhost:3000/api/visitas \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+### Ejemplo en JavaScript (fetch)
+
+```javascript
+// 1. Login
+const loginResponse = await fetch('http://localhost:3000/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: 'admin@tunel.com', password: 'mi_contraseña_segura' })
+});
+
+const { token, usuario } = await loginResponse.json();
+
+// 2. Guardar el token (p. ej. en localStorage o memoria)
+localStorage.setItem('auth_token', token);
+
+// 3. Petición autenticada posterior
+const visitasResponse = await fetch('http://localhost:3000/api/visitas', {
+  method: 'GET',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+  }
+});
+
+const visitas = await visitasResponse.json();
+```
+
+<Tip>
+  En aplicaciones de producción, considera almacenar el token en memoria o en una cookie `HttpOnly` en lugar de `localStorage` para reducir la exposición a ataques XSS.
+</Tip>
+
+## Contenido del token JWT
+
+El token es un JWT firmado con el algoritmo `HS256`. Su payload incluye los siguientes campos:
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `id` | `number` | Identificador único del usuario |
+| `nombre` | `string` | Nombre completo del usuario |
+| `rol` | `string` | Rol del usuario (`Admin` o `Guía`) |
+| `iat` | `number` | Timestamp de emisión (Unix epoch) |
+| `exp` | `number` | Timestamp de expiración (Unix epoch) |
+
+Puedes decodificar el payload en el cliente sin necesidad de la clave secreta para leer estos campos. La verificación de firma ocurre exclusivamente en el servidor.
+
+```javascript
+// Decodificar el payload (sin verificar firma)
+const payload = JSON.parse(atob(token.split('.')[1]));
+console.log(payload.rol);    // "Admin" | "Guía"
+console.log(payload.nombre); // "Juan García"
+```
+
+## Expiración del token
+
+La duración del token se controla con la variable de entorno **`JWT_EXPIRY`**. Si no está definida, el valor por defecto es **`24h`**.
+
+<Info>
+  El formato de `JWT_EXPIRY` sigue la notación de la librería `jsonwebtoken`: `60` (segundos), `2d` (días), `10h` (horas), `7d` (días), etc.
+</Info>
+
+Cuando un token expira, cualquier petición con ese token devolverá:
+
+```json
+{
+  "error": "Token inválido o expirado. Por favor, inicie sesión nuevamente."
+}
+```
+
+El cliente debe redirigir al usuario al login cuando reciba este error **401**.
+
+## Errores de autenticación
+
+<Accordion title="401 — Token ausente">
+  La petición no incluye la cabecera `Authorization` o no tiene el esquema `Bearer`.
+
+  ```json
+  {
+    "error": "Acceso denegado. Se requiere un token de autenticación."
+  }
+  ```
+
+  **Solución:** Incluir `Authorization: Bearer <token>` en todas las peticiones protegidas.
+</Accordion>
+
+<Accordion title="401 — Token inválido o expirado">
+  El token está malformado, fue firmado con una clave diferente, o su tiempo de vida ha expirado.
+
+  ```json
+  {
+    "error": "Token inválido o expirado. Por favor, inicie sesión nuevamente."
+  }
+  ```
+
+  **Solución:** Realizar un nuevo login para obtener un token fresco.
+</Accordion>
+
+<Accordion title="500 — JWT_SECRET no configurado">
+  El servidor no tiene definida la variable de entorno `JWT_SECRET`. Este es un error de configuración del entorno.
+
+  ```json
+  {
+    "error": "Error de configuración del servidor."
+  }
+  ```
+
+  **Solución:** Definir `JWT_SECRET` en las variables de entorno del servidor y reiniciarlo.
+</Accordion>
+
+## Control de acceso por rol
+
+Algunos endpoints están restringidos al rol `Admin`. El middleware `verificarRol` se aplica sobre esas rutas y comprueba el campo `rol` dentro del payload del token.
+
+### Flujo del middleware `verificarRol`
+
+<Steps>
+  <Step title="Verificar token">
+    El middleware `verificarToken` valida la firma del JWT y adjunta el payload decodificado al objeto de petición como `req.usuario`.
+  </Step>
+  <Step title="Verificar rol">
+    El middleware `verificarRol(['Admin'])` comprueba que `req.usuario.rol` esté incluido en la lista de roles permitidos.
+  </Step>
+  <Step title="Acceso concedido o denegado">
+    Si el rol coincide, la petición continúa al controlador. Si no coincide, el servidor devuelve **403 Forbidden** inmediatamente.
+  </Step>
+</Steps>
+
+### Respuesta 403 por rol insuficiente
+
+```json
+{
+  "error": "Acceso denegado. No tienes permisos suficientes para realizar esta acción."
+}
+```
+
+### Ejemplo: acceso a un endpoint exclusivo de Admin
+
+```bash
+# Con un usuario de rol "Guía" intentando acceder a un recurso de Admin
+curl -X GET http://localhost:3000/api/usuarios \
+  -H "Authorization: Bearer <token_de_guia>"
+
+# Respuesta:
+# HTTP/1.1 403 Forbidden
+# {
+#   "error": "Acceso denegado. No tienes permisos suficientes para realizar esta acción."
+# }
+```
+
+<Warning>
+  El rol `Guía` no puede gestionar usuarios, ver estadísticas de administración ni modificar la configuración del sistema. Estos endpoints requieren explícitamente el rol `Admin`.
+</Warning>

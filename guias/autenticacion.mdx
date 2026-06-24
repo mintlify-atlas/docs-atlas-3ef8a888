@@ -1,0 +1,98 @@
+---
+title: "Autenticación y Gestión de Sesión en el Túnel"
+sidebarTitle: "Autenticación"
+description: "Aprenda cómo iniciar sesión, entender el sistema de roles, y cómo el cierre automático por inactividad protege los datos del sistema."
+---
+
+El sistema de autenticación del Gestor de Visitas usa **JSON Web Tokens (JWT)**. Tras ingresar las credenciales, el servidor emite un token que se almacena en `localStorage` y se adjunta en cada solicitud posterior mediante el encabezado `Authorization: Bearer <token>`. El contexto de React (`AuthContext`) centraliza todo el estado de autenticación, expone el token y el perfil de usuario a todos los componentes, y administra los temporizadores de inactividad de forma transparente.
+
+## Flujo de inicio de sesión
+
+<Steps>
+  <Step title="Ingresar credenciales">
+    Navega a `/login` e ingresa tu dirección de correo electrónico y contraseña. El formulario realiza una petición `POST /api/auth/login` con el cuerpo `{ email, password }`.
+  </Step>
+  <Step title="Recibir el JWT">
+    Si las credenciales son válidas, el servidor responde con un objeto `{ token, usuario }`. El campo `usuario` incluye `id`, `nombre`, `email`, `telefono` y `rol` (`Admin` o `Guía`).
+  </Step>
+  <Step title="Persistir en localStorage">
+    El contexto llama internamente a `login(token, usuario)`, que guarda las tres claves: `localStorage.setItem('token', ...)`, `localStorage.setItem('rol', ...)` y `localStorage.setItem('usuario', JSON.stringify(...))`.
+  </Step>
+  <Step title="Cargar timeout de sesión">
+    Inmediatamente después de persistir el token, el sistema consulta `GET /api/configuracion/session_timeout_minutes` con el nuevo token para obtener el valor de inactividad configurado. Si la llamada falla, se usa el valor por defecto de **30 minutos**.
+  </Step>
+  <Step title="Iniciar el temporizador de inactividad">
+    Con el timeout resuelto, se arrancan los temporizadores de inactividad. A partir de este punto, cualquier actividad del usuario (movimiento del ratón, clic, tecla, scroll o toque) reinicia el contador.
+  </Step>
+  <Step title="Redirigir al dashboard">
+    Una vez completado el login, la aplicación redirige al usuario a `/dashboard` (rol Guía) o a la vista de estadísticas (rol Admin).
+  </Step>
+</Steps>
+
+## Roles y permisos de ruta
+
+El sistema reconoce dos roles. Las rutas protegidas verifican el rol almacenado en el contexto antes de renderizar el contenido.
+
+<CardGroup cols={2}>
+  <Card title="Admin" icon="shield-check" href="/guias/dashboard">
+    Acceso completo: dashboard operativo, estadísticas, gestión de gestores, calendario, exportación de informes, configuración del sistema y eliminación de registros.
+  </Card>
+  <Card title="Guía" icon="user" href="/guias/registro-visitas">
+    Acceso operativo: registro y edición de visitas, gestión de gestores (sin eliminar), calendario y descarga de comprobantes. No puede acceder a las estadísticas ni a la configuración global.
+  </Card>
+</CardGroup>
+
+## Temporizador de inactividad
+
+El sistema detecta actividad del usuario escuchando seis eventos del navegador: `mousemove`, `mousedown`, `keydown`, `touchstart`, `scroll` y `click`. Mientras la sesión esté activa, cualquiera de estos eventos reinicia el contador de inactividad al valor configurado.
+
+<Note>
+  El timeout por defecto es de **30 minutos** (`DEFAULT_TIMEOUT_MINUTES`). Este valor se carga desde la clave `session_timeout_minutes` de la API de configuración al iniciar cada sesión. Si el administrador cambia el valor en la configuración del sistema, el nuevo timeout se aplica de inmediato sin necesidad de volver a iniciar sesión.
+</Note>
+
+### Modal de advertencia de sesión
+
+Cuando quedan **60 segundos** para el cierre automático, aparece un modal superpuesto sobre toda la interfaz con un contador regresivo y una barra de progreso roja animada.
+
+<Tabs>
+  <Tab title="Continuar sesión">
+    El botón **"Continuar sesión"** llama a `resetInactivityTimer()`, lo que descarta el modal y reinicia el contador completo. La sesión sigue activa sin interrupciones. Esta es la acción recomendada cuando el usuario sigue trabajando en el sistema.
+  </Tab>
+  <Tab title="Cerrar sesión">
+    El botón **"Cerrar sesión"** llama a `logout()` de forma inmediata. Se eliminan las tres claves de `localStorage`, se limpia el estado del contexto y se redirige a `/login`. Esta acción es irreversible hasta que el usuario ingrese sus credenciales nuevamente.
+  </Tab>
+  <Tab title="Sin acción (timeout)">
+    Si el usuario no interactúa con el modal antes de que el contador llegue a cero, el temporizador de logout automático ejecuta `logout()` exactamente al vencer el timeout total. El usuario es redirigido a `/login`. Todos los datos no guardados (formularios en proceso) se perderán.
+  </Tab>
+</Tabs>
+
+<Warning>
+  Mientras el modal de advertencia de sesión esté visible, la actividad del usuario **no** reinicia el temporizador. Solo el clic explícito en "Continuar sesión" extiende la sesión. Esto evita que el usuario crea que está trabajando activamente mientras el sistema está a punto de cerrarla.
+</Warning>
+
+## Cierre de sesión y redirección
+
+El logout se puede iniciar de tres formas:
+
+| Origen | Mecanismo |
+|---|---|
+| Botón manual en la UI | Llama a `logout()` del contexto desde el menú de navegación |
+| Modal de advertencia | Clic en "Cerrar sesión" dentro del modal |
+| Timeout automático | El temporizador `logoutTimerRef` expira tras el período de inactividad |
+
+En todos los casos, `logout()` elimina `token`, `rol` y `usuario` de `localStorage`, limpia todos los timers activos (`logoutTimerRef`, `warningTimerRef`, `warningCountdownRef`) y redirige a `/login` si la ruta actual no es ya `/login`.
+
+## Actualizar el perfil sin re-autenticar
+
+La función `actualizarUsuario(datos: Partial<Usuario>)` permite modificar el nombre, email o teléfono del usuario autenticado en el contexto y en `localStorage` sin necesidad de hacer logout y login nuevamente. Esto se utiliza desde la pantalla de perfil cuando el usuario guarda cambios en sus datos personales.
+
+```ts
+// Ejemplo: actualizar solo el teléfono
+actualizarUsuario({ telefono: '0343-4123456' });
+// El contexto fusiona el valor nuevo con el objeto usuario existente
+// y persiste el resultado en localStorage('usuario')
+```
+
+<Tip>
+  Si el token JWT expira en el servidor (distinto al timeout de inactividad del cliente), las peticiones a la API devolverán `401 Unauthorized`. En ese caso, el sistema redirigirá automáticamente a `/login`. Asegúrate de que el tiempo de expiración del JWT en el servidor sea mayor o igual al timeout de inactividad configurado para evitar desconexiones inesperadas.
+</Tip>

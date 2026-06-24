@@ -1,0 +1,180 @@
+---
+title: "Días Inhábiles — Bloqueo de Fechas sin Visitas"
+sidebarTitle: "Días Inhábiles"
+description: "Gestiona las fechas en que el túnel no opera: lista días bloqueados, registra nuevos feriados o mantenimientos, y elimina bloqueos vigentes."
+---
+
+Los días inhábiles son fechas en las que no se puede registrar ninguna visita en el sistema. Se utilizan para representar feriados nacionales, cierres por mantenimiento, días no laborables o cualquier otra situación que impida la operación normal del túnel. El servicio valida que no se bloqueen fechas pasadas y que cada fecha sea única en el sistema.
+
+Todos los cambios sobre la tabla `DiaInhabil` quedan registrados automáticamente en el log de auditoría, indicando qué administrador bloqueó o desbloqueó cada fecha.
+
+---
+
+## GET /api/dias-inhabiles
+
+Devuelve la lista completa de días inhábiles registrados, ordenados cronológicamente de forma ascendente.
+
+**Autenticación:** `Authorization: Bearer <token>` — cualquier rol.
+
+### Respuesta exitosa `200 OK`
+
+Un arreglo de objetos. Puede ser un arreglo vacío `[]` si no hay días inhábiles registrados.
+
+<ResponseField name="id" type="integer">
+  Identificador único del registro de día inhábil.
+</ResponseField>
+
+<ResponseField name="fecha" type="string">
+  Fecha bloqueada en formato `YYYY-MM-DD`.
+</ResponseField>
+
+<ResponseField name="descripcion" type="string">
+  Texto descriptivo que explica el motivo del bloqueo (por ejemplo, `"Feriado Nacional"` o `"Mantenimiento programado"`).
+</ResponseField>
+
+### Ejemplo
+
+```bash
+curl -X GET https://api.example.com/api/dias-inhabiles \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+[
+  {
+    "id": 1,
+    "fecha": "2025-05-25",
+    "descripcion": "Feriado Nacional — Día de la Revolución de Mayo"
+  },
+  {
+    "id": 2,
+    "fecha": "2025-07-09",
+    "descripcion": "Feriado Nacional — Día de la Independencia"
+  },
+  {
+    "id": 3,
+    "fecha": "2025-08-15",
+    "descripcion": "Mantenimiento programado de infraestructura"
+  }
+]
+```
+
+### Respuestas de error
+
+| Código | Descripción |
+|---|---|
+| `401 Unauthorized` | Token ausente o inválido. |
+| `500 Internal Server Error` | Error interno al consultar la base de datos. |
+
+---
+
+## POST /api/dias-inhabiles
+
+Registra una nueva fecha como día inhábil, impidiendo que se creen visitas para ese día desde ese momento.
+
+**Autenticación:** `Authorization: Bearer <token>` — requiere rol **Admin**.
+
+<Warning>
+  No es posible bloquear una fecha que ya haya transcurrido. El sistema compara la fecha enviada con el día actual (en hora local del servidor) y rechaza la solicitud con `400 Bad Request` si la fecha es anterior a hoy.
+</Warning>
+
+### Cuerpo de la solicitud
+
+<ParamField body="fecha" type="string" required>
+  Fecha a bloquear en formato `YYYY-MM-DD`. Debe ser igual o posterior a la fecha actual. No puede ya estar registrada como día inhábil.
+</ParamField>
+
+<ParamField body="descripcion" type="string" required>
+  Descripción del motivo del bloqueo. No puede estar vacía.
+</ParamField>
+
+### Respuesta exitosa `201 Created`
+
+El objeto del día inhábil recién creado, tal como quedó persistido en la base de datos.
+
+<ResponseField name="id" type="integer">
+  Identificador único asignado al nuevo registro.
+</ResponseField>
+
+<ResponseField name="fecha" type="string">
+  Fecha bloqueada en formato `YYYY-MM-DD`, confirmando el valor almacenado.
+</ResponseField>
+
+<ResponseField name="descripcion" type="string">
+  Descripción del motivo del bloqueo tal como fue guardada.
+</ResponseField>
+
+### Ejemplo
+
+```bash
+curl -X POST https://api.example.com/api/dias-inhabiles \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fecha": "2025-10-12",
+    "descripcion": "Feriado Nacional — Día del Respeto a la Diversidad Cultural"
+  }'
+```
+
+```json
+{
+  "id": 4,
+  "fecha": "2025-10-12",
+  "descripcion": "Feriado Nacional — Día del Respeto a la Diversidad Cultural"
+}
+```
+
+### Respuestas de error
+
+| Código | Descripción |
+|---|---|
+| `400 Bad Request` | Fecha o descripción ausentes, o la fecha es anterior a hoy. Responde con `{ "error": "No se puede bloquear una fecha pasada" }`. |
+| `401 Unauthorized` | Token ausente o inválido. |
+| `403 Forbidden` | El usuario autenticado no tiene rol Admin. |
+| `409 Conflict` | La fecha ya está registrada como día inhábil. Responde con `{ "error": "Esta fecha ya está registrada como día inhábil" }`. |
+
+---
+
+## DELETE /api/dias-inhabiles/:id
+
+Elimina un día inhábil del sistema. Una vez eliminado, esa fecha vuelve a estar disponible para el registro de visitas.
+
+**Autenticación:** `Authorization: Bearer <token>` — requiere rol **Admin**.
+
+<Warning>
+  Eliminar un día inhábil **reactiva inmediatamente** la posibilidad de registrar visitas en esa fecha. Si existen visitas ya programadas para días que fueron bloqueados con posterioridad, el sistema no las altera; sólo deja de bloquear nuevas reservas.
+</Warning>
+
+### Parámetros de ruta
+
+<ParamField path="id" type="integer" required>
+  Identificador numérico del día inhábil a eliminar. Se obtiene del listado devuelto por `GET /api/dias-inhabiles`.
+</ParamField>
+
+### Respuesta exitosa `204 No Content`
+
+Sin cuerpo de respuesta. La ausencia de contenido confirma que el día inhábil fue eliminado correctamente.
+
+### Ejemplo
+
+```bash
+# Eliminar el día inhábil con id 4
+curl -X DELETE https://api.example.com/api/dias-inhabiles/4 \
+  -H "Authorization: Bearer <token>"
+```
+
+```
+HTTP/1.1 204 No Content
+```
+
+### Respuestas de error
+
+| Código | Descripción |
+|---|---|
+| `401 Unauthorized` | Token ausente o inválido. |
+| `403 Forbidden` | El usuario autenticado no tiene rol Admin. |
+| `500 Internal Server Error` | El registro no existe o se produjo un error al eliminarlo. |
+
+<Tip>
+  Tanto la creación como la eliminación de días inhábiles generan entradas en el [log de auditoría](/api/auditoria) con el formato `Bloqueó el día DD/MM/YYYY ("descripción")` o `Desbloqueó el día DD/MM/YYYY ("descripción")`, lo que facilita rastrear quién y cuándo realizó cada cambio.
+</Tip>

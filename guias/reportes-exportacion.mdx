@@ -1,0 +1,168 @@
+---
+title: "Reportes PDF y Exportación de Datos del Sistema"
+sidebarTitle: "Reportes"
+description: "Conozca los cinco tipos de exportación PDF disponibles, dónde encontrar cada botón en la interfaz y cómo el servidor genera los documentos con Puppeteer."
+---
+
+El sistema ofrece cinco tipos de exportación en formato PDF, generados en el servidor mediante **puppeteer-core** con **@sparticuz/chromium** en modo headless. Todos los PDFs se descargan directamente al navegador del usuario sin necesidad de abrir una nueva pestaña. Cada tipo de exportación tiene un endpoint dedicado, un nombre de archivo predefinido y un punto de acceso específico en la interfaz.
+
+## Tipos de exportación disponibles
+
+<CardGroup cols={2}>
+  <Card title="Cronograma Diario" icon="calendar-days" href="/guias/dashboard">
+    Genera el cronograma completo de visitas de un día específico en formato de tabla. Incluye todos los grupos activos ordenados por horario con sus datos de gestor, grupo, tipo, cantidad de personas y estado.
+  </Card>
+  <Card title="Reporte Mensual" icon="calendar" href="/guias/dashboard">
+    Consolida todas las visitas del mes y año indicados en un documento PDF. Incluye resumen de KPIs (visitas totales, personas, cruces, cancelaciones) y el listado detallado.
+  </Card>
+  <Card title="Reporte por Rango" icon="calendar-range" href="/guias/calendario">
+    Genera un listado de visitas para cualquier rango de fechas personalizado. Útil para informes periódicos que no coinciden con un mes calendario.
+  </Card>
+  <Card title="Comprobante de Visita" icon="file-check" href="/guias/registro-visitas">
+    Comprobante individual de una visita registrada. Incluye todos los datos de la reserva: turno, gestor, grupo, institución, accesibilidad y estado. Se descarga automáticamente al confirmar el registro.
+  </Card>
+  <Card title="Informe Estadístico" icon="chart-bar" href="/guias/reportes-exportacion">
+    Informe estadístico personalizable con secciones seleccionables de gráficos y rankings. Disponible exclusivamente para el rol Admin. Formato A4 horizontal.
+  </Card>
+</CardGroup>
+
+---
+
+## Detalle de cada exportación
+
+### 1. Cronograma Diario
+
+Accede al botón de impresora (ícono `print`) en la barra superior del **Dashboard Operativo** (`/dashboard`).
+
+| Parámetro | Descripción |
+|---|---|
+| **Endpoint** | `GET /api/estadisticas/exportar/diario?fecha=YYYY-MM-DD` |
+| **Archivo descargado** | `Cronograma_YYYY-MM-DD.pdf` |
+| **Rol requerido** | Guía o Admin |
+
+El PDF incluye el cronograma completo del día con todos los grupos activos (excluye canceladas) ordenados por horario de inicio.
+
+---
+
+### 2. Reporte Mensual
+
+Accede al botón **"Exportar Mensual"** en la barra de herramientas del **Dashboard de Estadísticas** (`/estadisticas`), junto al selector de mes y año.
+
+| Parámetro | Descripción |
+|---|---|
+| **Endpoint** | `GET /api/estadisticas/exportar?anio=YYYY&mes=MM` |
+| **Archivo descargado** | `Reporte_Visitas_MM_YYYY.pdf` |
+| **Rol requerido** | Admin |
+
+<Note>
+  El reporte mensual, al igual que todas las exportaciones del Dashboard de Estadísticas, es exclusivo para el rol **Admin**. Un usuario con rol Guía no puede acceder a `/estadisticas` ni a estos endpoints.
+</Note>
+
+---
+
+### 3. Reporte por Rango de Fechas
+
+Accesible desde dos lugares en la interfaz:
+
+- **Calendario** (`/calendario`): botón "Imprimir Listado" en la barra superior → modal de selección de rango → "Descargar PDF".
+- **Dashboard de Estadísticas** (`/estadisticas`): dentro del modal "Consultar Rango", botón "Exportar PDF" que aparece después de consultar las estadísticas del rango.
+
+| Parámetro | Descripción |
+|---|---|
+| **Endpoint** | `GET /api/estadisticas/exportar/rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD` |
+| **Archivo descargado** | `Reporte_Visitas_YYYY-MM-DD_a_YYYY-MM-DD.pdf` |
+| **Rol requerido** | Guía o Admin |
+
+<Warning>
+  La fecha `desde` debe ser estrictamente anterior a la fecha `hasta`. El frontend valida esto antes de enviar la petición. Si las fechas son iguales o el orden es incorrecto, se muestra un mensaje de error y no se realiza la llamada al servidor.
+</Warning>
+
+---
+
+### 4. Comprobante de Visita Individual
+
+El comprobante se genera en dos situaciones:
+
+1. **Automáticamente al registrar** una nueva visita: al confirmar el formulario de registro, el sistema descarga el comprobante sin acción adicional del usuario.
+2. **Manualmente desde el detalle**: en la página `/visitas/:id`, el botón "Imprimir comprobante" permite re-descargar el documento en cualquier momento posterior.
+
+| Parámetro | Descripción |
+|---|---|
+| **Endpoint** | `GET /api/estadisticas/exportar/visita/:id` |
+| **Archivo descargado** | `Comprobante_visita_DD-MM-AAAA.pdf` (fecha formateada como DD-MM-AAAA) |
+| **Rol requerido** | Guía o Admin |
+
+El comprobante incluye: número de visita, fecha y hora del turno, tipo de visita, nombre del grupo, datos del gestor, institución educativa (si aplica), nivel educativo o tipo de grupo, cantidad de personas, indicadores de accesibilidad y cruce de túnel, y estado de la visita.
+
+---
+
+### 5. Informe Estadístico Personalizado
+
+Accede desde el menú de navegación → **"Confección de Informes"** (`/informes`). Esta pantalla permite generar un informe PDF A4 horizontal con secciones estadísticas seleccionables.
+
+<Note>
+  El informe estadístico es exclusivo para el rol **Admin**. Los usuarios con rol Guía no tienen acceso a la ruta `/informes`. El endpoint también requiere un token de administrador; el servidor responde `403 Forbidden` para tokens de rol Guía.
+</Note>
+
+| Parámetro | Descripción |
+|---|---|
+| **Endpoint** | `GET /api/estadisticas/exportar/informe?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&titulo=...&secciones=...` |
+| **Archivo descargado** | `{Titulo_personalizado}.pdf` o `Informe_DD/MM/AAAA_-_DD/MM/AAAA.pdf` |
+| **Rol requerido** | Admin |
+
+#### Parámetros del informe
+
+| Query param | Obligatorio | Descripción |
+|---|---|---|
+| `desde` | ✅ | Fecha de inicio del período en formato `YYYY-MM-DD` |
+| `hasta` | ✅ | Fecha de fin del período en formato `YYYY-MM-DD` |
+| `titulo` | ❌ | Título personalizado del informe. Si se omite, se genera automáticamente como `Informe DD/MM/AAAA - DD/MM/AAAA`. |
+| `secciones` | ✅ | Lista de claves separadas por coma. Al menos una sección debe estar seleccionada. |
+
+#### Secciones del informe (pestaña Geográficas)
+
+| Clave | Título en PDF | Contenido |
+|---|---|---|
+| `nacionales` | Visitantes Nacionales | Gráfico de barras horizontales con visitantes por provincia argentina |
+| `extranjeros` | Visitantes Extranjeros | Gráfico de barras con visitantes de países distintos a Argentina |
+| `entrerios` | Visitantes de Entre Ríos | Detalle por localidades de la provincia de Entre Ríos |
+| `santafe` | Visitantes de Santa Fe | Detalle por localidades de la provincia de Santa Fe |
+
+#### Secciones del informe (pestaña Instituciones)
+
+| Clave | Título en PDF | Contenido |
+|---|---|---|
+| `inst_nacionales` | Instituciones Nacionales | Visitantes de instituciones agrupados por provincia de origen |
+| `inst_niveles` | Niveles Educativos | Visitantes de instituciones desglosados por nivel educativo |
+| `inst_entrerios` | Entre Ríos (Localidades) | Visitantes de instituciones según localidades de Entre Ríos |
+| `inst_santafe` | Santa Fe (Localidades) | Visitantes de instituciones según localidades de Santa Fe |
+| `inst_cruces` | Cruces de Túnel | Lista de visitas institucionales que realizaron el cruce de túnel |
+
+<Tip>
+  Si el informe es de tipo "Instituciones" y el título personalizado no termina con "- Instituciones", el sistema agrega ese sufijo automáticamente para distinguir ambos tipos de informe en el nombre del archivo descargado.
+</Tip>
+
+---
+
+## Generación de PDF en el servidor
+
+Todos los PDFs son generados **en el servidor** usando **puppeteer-core** con **@sparticuz/chromium**. Esto garantiza que el documento tenga el mismo aspecto independientemente del navegador o sistema operativo del usuario.
+
+<Info>
+  El proceso de generación es completamente transparente para el usuario: el botón de exportación muestra un indicador de carga (`progress_activity` giratorio) mientras el servidor genera el archivo. Una vez listo, el blob se descarga directamente mediante la API de `URL.createObjectURL()` sin intermediarios.
+</Info>
+
+El flujo técnico de descarga es idéntico en todos los tipos de exportación:
+
+```ts
+// Patrón de descarga usado en todos los componentes de exportación
+const res = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
+if (!res.ok) throw new Error('Error al generar el PDF');
+const blob = await res.blob();
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = nombreArchivo;
+a.click();
+URL.revokeObjectURL(url); // Liberar memoria
+```

@@ -1,0 +1,203 @@
+---
+title: "Configuración del Sistema — Parámetros Globales"
+sidebarTitle: "Configuración"
+description: "Consulta y actualiza los parámetros operativos del sistema: aforo diario, capacidad por turno y timeout de sesión mediante una API de clave-valor."
+---
+
+El sistema expone una API de configuración basada en pares clave-valor almacenados en la tabla `Configuracion`. Cualquier usuario autenticado puede leer los parámetros para que el Dashboard muestre valores actualizados; sin embargo, únicamente los usuarios con rol **Admin** pueden modificarlos. Cada modificación queda registrada automáticamente en el log de auditoría con el identificador del administrador que la realizó.
+
+<Note>
+  El diseño de clave-valor permite agregar nuevos parámetros operativos en el futuro sin ningún cambio de esquema en la base de datos. Basta con insertar una nueva fila en la tabla `Configuracion` con la clave deseada.
+</Note>
+
+---
+
+## Parámetros conocidos
+
+| Clave | Descripción | Valor por defecto | Rango válido |
+|---|---|---|---|
+| `capacidad_maxima` | Aforo máximo de personas permitidas en todo el día | `300` | 1 – 9 999 |
+| `capacidad_por_turno` | Aforo máximo de personas por turno (combinación fecha + hora) | `80` | 1 – 9 999 |
+| `session_timeout_minutes` | Minutos de inactividad tras los cuales el sistema cierra la sesión del usuario | `30` | 1 – 480 |
+
+Si un parámetro no tiene fila en la base de datos, el servicio devuelve su valor por defecto. Si la clave es completamente desconocida, `valor` se devuelve como `null`.
+
+---
+
+## GET /api/configuracion/:clave
+
+Devuelve el valor actual de un parámetro de configuración identificado por su clave.
+
+**Autenticación:** `Authorization: Bearer <token>` — cualquier rol.
+
+### Parámetros de ruta
+
+<ParamField path="clave" type="string" required>
+  Identificador del parámetro de configuración. Valores reconocidos: `capacidad_maxima`, `capacidad_por_turno`, `session_timeout_minutes`.
+</ParamField>
+
+### Respuesta exitosa `200 OK`
+
+<ResponseField name="clave" type="string">
+  El identificador del parámetro solicitado. Siempre coincide con el valor enviado en la URL.
+</ResponseField>
+
+<ResponseField name="valor" type="string | null">
+  El valor actual del parámetro como cadena de texto. Devuelve `null` si la clave no existe y no tiene valor por defecto definido.
+</ResponseField>
+
+### Ejemplos
+
+```bash
+# Leer el aforo máximo diario
+curl -X GET https://api.example.com/api/configuracion/capacidad_maxima \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+{
+  "clave": "capacidad_maxima",
+  "valor": "300"
+}
+```
+
+```bash
+# Leer la capacidad por turno
+curl -X GET https://api.example.com/api/configuracion/capacidad_por_turno \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+{
+  "clave": "capacidad_por_turno",
+  "valor": "80"
+}
+```
+
+```bash
+# Leer el timeout de sesión
+curl -X GET https://api.example.com/api/configuracion/session_timeout_minutes \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+{
+  "clave": "session_timeout_minutes",
+  "valor": "30"
+}
+```
+
+### Respuestas de error
+
+| Código | Descripción |
+|---|---|
+| `401 Unauthorized` | Token ausente o inválido. |
+| `500 Internal Server Error` | Error interno al consultar la base de datos. |
+
+---
+
+## PUT /api/configuracion/:clave
+
+Actualiza el valor de un parámetro de configuración existente. Si la clave aún no tiene fila en la tabla, se crea automáticamente. El cambio toma efecto de manera inmediata, sin necesidad de reiniciar el servidor.
+
+**Autenticación:** `Authorization: Bearer <token>` — requiere rol **Admin**.
+
+### Parámetros de ruta
+
+<ParamField path="clave" type="string" required>
+  Identificador del parámetro a actualizar. Debe ser una de las claves reconocidas por el sistema para que se apliquen las validaciones de rango.
+</ParamField>
+
+### Cuerpo de la solicitud
+
+<ParamField body="valor" type="string" required>
+  Nuevo valor para el parámetro. Siempre se almacena como texto, independientemente del tipo semántico. Debe cumplir las restricciones de rango de cada clave (ver tabla de parámetros).
+</ParamField>
+
+### Respuesta exitosa `200 OK`
+
+<ResponseField name="mensaje" type="string">
+  Confirmación de la operación. Siempre es `"Configuración guardada"`.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Objeto con el estado final del parámetro tal como quedó persistido en la base de datos.
+
+  <Expandable title="Campos de data">
+    <ResponseField name="data.clave" type="string">
+      El identificador del parámetro actualizado.
+    </ResponseField>
+    <ResponseField name="data.valor" type="string">
+      El nuevo valor ya guardado.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Ejemplos
+
+```bash
+# Actualizar el aforo máximo diario a 250
+curl -X PUT https://api.example.com/api/configuracion/capacidad_maxima \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{ "valor": "250" }'
+```
+
+```json
+{
+  "mensaje": "Configuración guardada",
+  "data": {
+    "clave": "capacidad_maxima",
+    "valor": "250"
+  }
+}
+```
+
+```bash
+# Reducir la capacidad por turno a 60
+curl -X PUT https://api.example.com/api/configuracion/capacidad_por_turno \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{ "valor": "60" }'
+```
+
+```json
+{
+  "mensaje": "Configuración guardada",
+  "data": {
+    "clave": "capacidad_por_turno",
+    "valor": "60"
+  }
+}
+```
+
+```bash
+# Reducir el timeout de sesión a 15 minutos
+curl -X PUT https://api.example.com/api/configuracion/session_timeout_minutes \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{ "valor": "15" }'
+```
+
+```json
+{
+  "mensaje": "Configuración guardada",
+  "data": {
+    "clave": "session_timeout_minutes",
+    "valor": "15"
+  }
+}
+```
+
+### Respuestas de error
+
+| Código | Descripción |
+|---|---|
+| `400 Bad Request` | El campo `valor` está ausente, vacío, o fuera del rango permitido para esa clave. El cuerpo incluye `{ "error": "<descripción>" }`. |
+| `401 Unauthorized` | Token ausente o inválido. |
+| `403 Forbidden` | El usuario autenticado no tiene rol Admin. |
+| `500 Internal Server Error` | Error interno al persistir el cambio. |
+
+<Tip>
+  Cada actualización exitosa genera una entrada en el log de auditoría con el formato `Actualizó configuración "<Nombre legible>" de "<valor anterior>" a "<nuevo valor>"`. Consulta el [log de auditoría](/api/auditoria) para rastrear el historial completo de cambios de configuración.
+</Tip>

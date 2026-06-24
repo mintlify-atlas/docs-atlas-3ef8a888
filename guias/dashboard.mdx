@@ -1,0 +1,133 @@
+---
+title: "Dashboard Operativo y Estadísticas del Túnel"
+sidebarTitle: "Dashboard"
+description: "Consulte el cronograma diario de turnos con su ocupación en tiempo real, navegue entre fechas y acceda a los KPIs y gráficos del panel de estadísticas."
+---
+
+El sistema ofrece dos vistas de tablero complementarias: el **Dashboard Operativo**, centrado en la gestión día a día de los turnos, y el **Dashboard de Estadísticas** (exclusivo para administradores), que consolida indicadores clave de rendimiento, evolución de ocupación y rankings de gestores. Ambos paneles se actualizan en tiempo real al cambiar el período seleccionado.
+
+## Dashboard Operativo
+
+El Dashboard Operativo es la pantalla principal de trabajo diario. Se accede en `/dashboard` y carga automáticamente el cronograma del día actual. La URL siempre refleja la fecha visible mediante el parámetro `?fecha=YYYY-MM-DD`, lo que permite compartir o recargar la vista sin perder el contexto.
+
+### Obtener datos del día
+
+Al seleccionar una fecha, el dashboard lanza tres peticiones en paralelo:
+
+| Endpoint | Propósito |
+|---|---|
+| `GET /api/visitas?fecha=YYYY-MM-DD` | Lista de visitas agendadas para esa fecha |
+| `GET /api/dias-inhabiles` | Catálogo de días inhábiles para detectar si la fecha está bloqueada |
+| `GET /api/configuracion/capacidad_por_turno` | Capacidad máxima por turno (default: **80 personas/turno**) |
+
+### Tarjetas de resumen (KPIs del día)
+
+Encima del cronograma se muestran tres indicadores que se recalculan con cada cambio de fecha, excluyendo siempre las visitas canceladas:
+
+<CardGroup cols={3}>
+  <Card title="Total Visitas" icon="ticket" href="/guias/registro-visitas">
+    Número de grupos activos (estado distinto de "Cancelada") agendados para el día seleccionado.
+  </Card>
+  <Card title="Total Personas" icon="users" href="/guias/registro-visitas">
+    Suma de `cantidad_personas` de todas las visitas activas del día.
+  </Card>
+  <Card title="Cruces de Túnel" icon="arrow-right-left" href="/guias/registro-visitas">
+    Cantidad de grupos que tienen marcada la opción `tiene_cruce_tunel = true`.
+  </Card>
+</CardGroup>
+
+### Navegación entre fechas
+
+El selector de fecha en la esquina superior derecha permite tres formas de cambiar el día visualizado:
+
+- **Flechas `‹` y `›`**: avanzan o retroceden un día. Internamente suman o restan 1 a la fecha actual usando `Date.setDate()` con hora fija a las 12:00 para evitar ambigüedades de zona horaria.
+- **Input de tipo `date`**: edición directa del campo para saltar a cualquier fecha.
+- **Botón "Agendar para este día"**: navega a `/nueva-visita?fecha=YYYY-MM-DD` pre-cargando la fecha en el formulario.
+
+### Cronograma de turnos y estados de visita
+
+El cronograma muestra una grilla de slots de **08:00 a 17:30** en intervalos de 30 minutos. Cada slot puede estar libre u ocupado por uno o más grupos.
+
+#### Colores por estado de visita
+
+| Estado | Color de badge | Descripción |
+|---|---|---|
+| **Agendada** | Azul cielo (`bg-sky-100 text-sky-800`) | Visita confirmada, pendiente de realizarse |
+| **Realizada** | Verde (`bg-[#e6f4ea] text-[#137333]`) | Visita completada y marcada como realizada |
+| **Cancelada** | Rojo (`bg-red-100 text-red-700`) | Visita anulada con o sin motivo registrado |
+
+#### Slots con múltiples grupos
+
+<Tip>
+  Un slot de hora puede contener **varios grupos simultáneamente**, siempre que la suma de personas no supere la `capacidad_por_turno` (80 personas). Cuando hay más de un grupo en el mismo turno, el encabezado del slot muestra un badge "N grupos" junto con el total de personas ocupadas y el cupo restante disponible. El botón **"Agregar grupo"** aparece en la cabecera del slot cuando aún hay cupo y el día no está marcado como inhábil; al hacer clic navega a `/nueva-visita?fecha=YYYY-MM-DD&hora=HH:MM` pre-cargando ambos parámetros en el formulario.
+</Tip>
+
+#### Acciones rápidas por visita
+
+Dentro de cada fila de grupo en un slot ocupado están disponibles las siguientes acciones:
+
+<Accordion title="Marcar como Realizada">
+  El botón con ícono `check_circle` cambia el estado de la visita a `"Realizada"` mediante `PUT /api/visitas/:id` con el cuerpo `{ estado: 'Realizada' }`. Solo aparece si el estado actual es `"Agendada"` y el día no es inhábil. Una vez ejecutado, el badge del grupo cambia a verde.
+</Accordion>
+
+<Accordion title="Ver detalle">
+  El botón con ícono `visibility` navega a `/visitas/:id` donde se muestra el detalle completo de la visita, incluyendo datos del gestor, grupo, institución y el botón de descarga del comprobante PDF.
+</Accordion>
+
+<Accordion title="Imprimir cronograma del día">
+  El botón de impresora en la barra de herramientas superior llama a `GET /api/estadisticas/exportar/diario?fecha=YYYY-MM-DD` y descarga el archivo `Cronograma_YYYY-MM-DD.pdf` con todos los grupos del día ordenados por horario.
+</Accordion>
+
+### Días inhábiles
+
+Cuando la fecha seleccionada está registrada en la tabla `DiaInhabil`, el dashboard muestra un banner de alerta rojo con la descripción del motivo, oculta el botón "Agendar para este día" y reemplaza los slots disponibles con indicadores grises de "No disponible". No se pueden agendar ni marcar visitas como realizadas en días inhábiles.
+
+---
+
+## Dashboard de Estadísticas (Admin)
+
+El Dashboard de Estadísticas está disponible en `/estadisticas` exclusivamente para el rol **Admin**. Consume el endpoint `GET /api/estadisticas/admin?mes=MM&anio=YYYY` y presenta los datos del mes seleccionado.
+
+### Navegación por mes
+
+Los controles de mes/año en la esquina superior derecha permiten avanzar y retroceder mes a mes. Al cambiar el período, el dashboard dispara una nueva petición y reemplaza todos los bloques de estadísticas.
+
+### KPIs del período
+
+Cuatro tarjetas resumen los indicadores principales del mes o rango consultado:
+
+| KPI | Descripción |
+|---|---|
+| **Visitas Totales** | Número de visitas registradas (activas) en el período |
+| **Personas Recibidas** | Suma total de personas en todas las visitas activas |
+| **Cruces de Túnel** | Cantidad de visitas con `tiene_cruce_tunel = true` |
+| **Cancelaciones** | Número de visitas con estado `"Cancelada"` |
+
+### Gráfico de evolución de ocupación
+
+El gráfico de barras muestra la ocupación diaria del período. Cada barra representa un día y su color varía según el nivel de ocupación:
+
+| Color | Rango de personas | Significado |
+|---|---|---|
+| Verde esmeralda | < 500 personas | Baja ocupación |
+| Ámbar | 500 – 1 199 personas | Ocupación media |
+| Rosa/rojo | ≥ 1 200 personas | Alta ocupación (cerca del límite de 1 600/día) |
+
+Al pasar el cursor sobre una barra aparece un tooltip con el total exacto de personas y el porcentaje del aforo diario máximo.
+
+### Rankings y distribuciones
+
+Debajo del gráfico de evolución se presentan cuatro bloques adicionales:
+
+- **Top Gestores**: ranking de los gestores con mayor número de visitas y personas gestionadas en el período.
+- **Tipo de Visitante**: distribución porcentual entre grupos de tipo `Institución` y `Particulares`, con barra de progreso.
+- **Nivel Educativo**: desglose de personas de visitas institucionales por nivel (Infantes, Primario, Secundario, Terciario, Universitario, Adultos Mayores).
+- **Provincias de Argentina** y **Origen de Visitantes**: procedencia geográfica de los grupos con gráfico de anillo SVG.
+
+### Consulta por rango de fechas
+
+El botón **"Consultar Rango"** abre un modal donde se puede ingresar una fecha de inicio y una de fin para obtener estadísticas de cualquier período arbitrario. Los resultados se presentan con los mismos bloques de KPIs, gráfico y rankings. Desde el modal también se puede exportar el reporte del rango a PDF.
+
+<Note>
+  Las estadísticas por rango consultan el endpoint `GET /api/estadisticas/rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD`. Este endpoint es exclusivo para administradores. Un Guía que intente acceder a `/estadisticas` será redirigido automáticamente por el sistema de protección de rutas.
+</Note>

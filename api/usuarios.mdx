@@ -1,0 +1,324 @@
+---
+title: "Usuarios API — Tunnel Visit Management System"
+sidebarTitle: "Usuarios"
+description: "Administer system users: list, create, update roles, change passwords, manage profiles, and safely deactivate or reactivate accounts with built-in safeguards."
+---
+
+The Usuarios endpoints manage the internal accounts that operate the Túnel Subfluvial visitor management system. Users can hold the `Admin` or `Guía` role. Most endpoints are restricted to users with the `Admin` role; the password and profile endpoints allow each user to manage their own data. Every request requires a valid `Authorization: Bearer <token>` header.
+
+---
+
+## GET /api/usuarios
+
+Returns a list of all users registered in the system. This endpoint is restricted to the `Admin` role.
+
+```bash
+curl -X GET "https://api.example.com/api/usuarios" \
+  -H "Authorization: Bearer <token>"
+```
+
+<ResponseField name="(array)" type="array">
+  Array of user objects.
+</ResponseField>
+<ResponseField name="id" type="number">
+  Unique user identifier.
+</ResponseField>
+<ResponseField name="nombre" type="string">
+  Full name of the user.
+</ResponseField>
+<ResponseField name="email" type="string">
+  Login email address.
+</ResponseField>
+<ResponseField name="telefono" type="string">
+  Contact phone number.
+</ResponseField>
+<ResponseField name="rol" type="string">
+  User role: `Admin` or `Guía`.
+</ResponseField>
+<ResponseField name="activo" type="boolean">
+  Whether the account is currently active.
+</ResponseField>
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Success — full user list returned |
+| `401`  | Missing or invalid token |
+| `403`  | Authenticated user does not have the `Admin` role |
+| `500`  | Internal server error |
+
+---
+
+## POST /api/usuarios
+
+Creates a new system user. Restricted to the `Admin` role. The service layer validates uniqueness of the email address and applies any password hashing before persisting.
+
+<Warning>
+  Only Admin users can create new accounts. The initial password must be set here and communicated to the new user out-of-band. Users can change it later via `PUT /api/usuarios/:id/password`.
+</Warning>
+
+<ParamField body="nombre" type="string" required>
+  Full name of the new user.
+</ParamField>
+<ParamField body="email" type="string" required>
+  Login email address. Must be unique across all users.
+</ParamField>
+<ParamField body="password" type="string" required>
+  Initial plaintext password. Stored as a bcrypt hash.
+</ParamField>
+<ParamField body="rol" type="string" required>
+  Role to assign: `Admin` or `Guía`.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Confirmation message: `"Usuario creado exitosamente"`.
+</ResponseField>
+<ResponseField name="usuario" type="object">
+  The newly created user object (password hash is not returned).
+</ResponseField>
+
+```bash
+curl -X POST "https://api.example.com/api/usuarios" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "Martina López",
+    "email": "martina.lopez@tunel.gob.ar",
+    "password": "SecureP@ss123",
+    "rol": "Guía"
+  }'
+```
+
+| Status | Meaning |
+|--------|---------|
+| `201`  | User created — returns `{ mensaje, usuario }` |
+| `400`  | Validation error (duplicate email, missing required fields, etc.) |
+| `401`  | Missing or invalid token |
+| `403`  | Authenticated user does not have the `Admin` role |
+
+---
+
+## PUT /api/usuarios/:id
+
+Updates the profile data of an existing user. Only `nombre`, `email`, `telefono`, and `rol` can be changed through this endpoint. Password changes must be made via `PUT /api/usuarios/:id/password`. Restricted to the `Admin` role.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the user to update.
+</ParamField>
+<ParamField body="nombre" type="string">
+  Updated full name.
+</ParamField>
+<ParamField body="email" type="string">
+  Updated email address.
+</ParamField>
+<ParamField body="telefono" type="string">
+  Updated contact phone number.
+</ParamField>
+<ParamField body="rol" type="string">
+  Updated role: `Admin` or `Guía`.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Confirmation message: `"Usuario actualizado correctamente."`.
+</ResponseField>
+<ResponseField name="usuario" type="object">
+  The full updated user object.
+</ResponseField>
+
+```bash
+curl -X PUT "https://api.example.com/api/usuarios/5" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rol": "Admin",
+    "telefono": "+54 343 4000001"
+  }'
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | User updated — returns `{ mensaje, usuario }` |
+| `400`  | Validation or service-layer error |
+| `401`  | Missing or invalid token |
+| `403`  | Authenticated user does not have the `Admin` role |
+
+---
+
+## PATCH /api/usuarios/:id/desactivar
+
+Soft-deactivates a user account by setting `activo = false`. The user is preserved in the database for audit purposes but can no longer log in. Restricted to the `Admin` role.
+
+<Warning>
+  Two built-in protections apply. First, an Admin **cannot deactivate their own account** while logged in — attempting to do so returns `400`. Second, the service layer prevents deactivating the **last remaining Admin** user to avoid locking everyone out of the system.
+</Warning>
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the user to deactivate.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Confirmation message including the user's name, e.g. `"Usuario \"Martina López\" desactivado correctamente"`.
+</ResponseField>
+<ResponseField name="usuario" type="object">
+  The updated user object with `activo` set to `false`.
+</ResponseField>
+
+```bash
+curl -X PATCH "https://api.example.com/api/usuarios/5/desactivar" \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | User deactivated — returns `{ mensaje, usuario }` |
+| `400`  | Self-deactivation attempt, or last-Admin protection triggered |
+| `401`  | Missing or invalid token |
+| `403`  | Authenticated user does not have the `Admin` role |
+| `404`  | No user found with the given ID |
+
+---
+
+## PATCH /api/usuarios/:id/reactivar
+
+Re-enables a previously deactivated user account by setting `activo = true`. Restricted to the `Admin` role. The reactivated user can log in again immediately.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the user to reactivate.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Confirmation message including the user's name, e.g. `"Usuario \"Martina López\" reactivado correctamente"`.
+</ResponseField>
+<ResponseField name="usuario" type="object">
+  The updated user object with `activo` set to `true`.
+</ResponseField>
+
+```bash
+curl -X PATCH "https://api.example.com/api/usuarios/5/reactivar" \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | User reactivated — returns `{ mensaje, usuario }` |
+| `400`  | Service-layer error |
+| `401`  | Missing or invalid token |
+| `403`  | Authenticated user does not have the `Admin` role |
+| `404`  | No user found with the given ID |
+
+---
+
+## PUT /api/usuarios/:id/password
+
+Changes the password for a user account. The requesting user must either be the account owner or hold the `Admin` role. Both the current password and the desired new password are required. The current password is verified against the stored hash before the change is applied.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the user whose password is being changed.
+</ParamField>
+<ParamField body="passwordActual" type="string" required>
+  The user's current password in plaintext for verification.
+</ParamField>
+<ParamField body="nuevaPassword" type="string" required>
+  The new password in plaintext. Will be stored as a bcrypt hash.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Confirmation message: `"Contraseña actualizada correctamente."`.
+</ResponseField>
+
+```bash
+curl -X PUT "https://api.example.com/api/usuarios/5/password" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "passwordActual": "SecureP@ss123",
+    "nuevaPassword": "NuevaP@ss456"
+  }'
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Password changed — returns `{ mensaje }` |
+| `400`  | Missing fields or current password is incorrect |
+| `401`  | Missing or invalid token |
+| `403`  | Requester is neither the account owner nor an Admin |
+
+---
+
+## GET /api/usuarios/:id/perfil
+
+Returns the profile of the specified user. A user can only view their own profile unless they hold the `Admin` role. Returns `404` if the user is not found.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the user whose profile to retrieve.
+</ParamField>
+
+<ResponseField name="id" type="number">
+  Unique user identifier.
+</ResponseField>
+<ResponseField name="nombre" type="string">
+  Full name.
+</ResponseField>
+<ResponseField name="email" type="string">
+  Login email address.
+</ResponseField>
+<ResponseField name="telefono" type="string">
+  Contact phone number.
+</ResponseField>
+<ResponseField name="rol" type="string">
+  Current role: `Admin` or `Guía`.
+</ResponseField>
+<ResponseField name="activo" type="boolean">
+  Whether the account is currently active.
+</ResponseField>
+
+```bash
+curl -X GET "https://api.example.com/api/usuarios/5/perfil" \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Success — user profile returned |
+| `401`  | Missing or invalid token |
+| `403`  | Requester is not the account owner and does not hold the `Admin` role |
+| `404`  | No user found with the given ID |
+
+---
+
+## PUT /api/usuarios/:id/perfil
+
+Allows a user to update their own contact details. Only `email` and `telefono` can be changed through this endpoint. **Only the account owner** may call this endpoint — not even an Admin can update another user's profile here. To change `nombre` or `rol`, use `PUT /api/usuarios/:id` instead.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the user whose profile to update. Must match the authenticated user's ID.
+</ParamField>
+<ParamField body="email" type="string">
+  Updated email address.
+</ParamField>
+<ParamField body="telefono" type="string">
+  Updated contact phone number.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Confirmation message: `"Perfil actualizado correctamente."`.
+</ResponseField>
+<ResponseField name="usuario" type="object">
+  The updated user object reflecting the new contact details.
+</ResponseField>
+
+```bash
+curl -X PUT "https://api.example.com/api/usuarios/5/perfil" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "martina.nuevo@tunel.gob.ar",
+    "telefono": "+54 343 4999999"
+  }'
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Profile updated — returns `{ mensaje, usuario }` |
+| `400`  | Validation or service-layer error |
+| `401`  | Missing or invalid token |
+| `403`  | Authenticated user is not the account owner |

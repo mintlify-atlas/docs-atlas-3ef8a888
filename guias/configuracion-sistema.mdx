@@ -1,0 +1,144 @@
+---
+title: "Configuración del Sistema de Gestión de Visitas al Túnel"
+sidebarTitle: "Configuración Sistema"
+description: "Ajuste el aforo diario, la capacidad por turno y el timeout de sesión desde el panel de administración sin necesidad de reiniciar el servidor."
+---
+
+El sistema almacena sus parámetros operativos en una tabla de clave-valor llamada `CONFIGURACION`. Este diseño permite que un Admin modifique las reglas de negocio más importantes —como cuántas personas pueden visitar el túnel por día o cuánto tiempo de inactividad cierra una sesión— directamente desde la interfaz, sin tocar código ni reiniciar servicios. Los cambios son **inmediatos**: la próxima solicitud que consulte un parámetro leerá el valor actualizado desde la base de datos.
+
+<Note>
+  La arquitectura de clave-valor en la tabla `CONFIGURACION` es deliberadamente flexible. Aunque hoy el sistema gestiona tres parámetros conocidos, es posible incorporar nuevas claves en el futuro sin modificar el esquema de la base de datos. Solo se necesita insertar una nueva fila con la clave y su valor por defecto.
+</Note>
+
+## Control de acceso
+
+La lectura de parámetros de configuración está disponible para cualquier usuario autenticado, ya que algunas secciones de la interfaz (como el Dashboard) la necesitan. La escritura, en cambio, está restringida exclusivamente al rol **Admin**.
+
+| Método | Ruta | Requiere | Descripción |
+|--------|------|----------|-------------|
+| `GET` | `/api/configuracion/:clave` | Token válido (cualquier rol) | Lee el valor de un parámetro |
+| `PUT` | `/api/configuracion/:clave` | Admin | Actualiza el valor de un parámetro |
+
+## Parámetros disponibles
+
+El sistema define tres claves de configuración con sus valores por defecto:
+
+| Clave | Valor por defecto | Descripción |
+|-------|-------------------|-------------|
+| `capacidad_maxima` | `300` | Límite total de personas que pueden visitar el túnel en un mismo día (suma de todos los turnos). |
+| `capacidad_por_turno` | `80` | Máximo de personas que pueden compartir un mismo horario de turno. Múltiples grupos pueden coincidir hasta alcanzar este tope. |
+| `session_timeout_minutes` | `30` | Minutos de inactividad antes de que el sistema cierre la sesión automáticamente. El rango permitido es de 1 a 480 minutos. |
+
+<Tip>
+  Los cambios de configuración tienen **efecto inmediato**, sin necesidad de reiniciar el servidor ni la aplicación frontend. El `capacidad_maxima` y `capacidad_por_turno` se aplican en el próximo intento de registrar una visita; el `session_timeout_minutes` se aplica en el próximo inicio de sesión de cada usuario.
+</Tip>
+
+## Leer un parámetro
+
+Cualquier usuario con sesión activa puede leer el valor actual de una clave:
+
+```http
+GET /api/configuracion/capacidad_maxima
+Authorization: Bearer <token>
+```
+
+**Respuesta exitosa (`200`):**
+
+```json
+{
+  "clave": "capacidad_maxima",
+  "valor": "300"
+}
+```
+
+Los valores siempre se devuelven como `string`. La aplicación convierte a número donde corresponda.
+
+## Actualizar un parámetro
+
+Solo los Admins pueden modificar valores. El cuerpo de la solicitud debe incluir el campo `valor`:
+
+```http
+PUT /api/configuracion/capacidad_maxima
+Authorization: Bearer <token_admin>
+Content-Type: application/json
+
+{
+  "valor": "250"
+}
+```
+
+**Respuesta exitosa (`200`):**
+
+```json
+{
+  "mensaje": "Configuración guardada",
+  "data": {
+    "clave": "capacidad_maxima",
+    "valor": "250"
+  }
+}
+```
+
+Si el campo `valor` se envía vacío, nulo o no se incluye, la API responde `400 Bad Request`:
+
+```json
+{ "error": "El valor es requerido" }
+```
+
+## Configurar los tres parámetros
+
+<Tabs>
+  <Tab title="Aforo Máximo Diario">
+    **Clave:** `capacidad_maxima` | **Por defecto:** `300`
+
+    Define el techo total de personas para un día completo, sumando todas las visitas de todos los turnos. Cuando la suma de visitantes del día alcanza este número, el sistema rechaza nuevas reservas con `400`.
+
+    ```http
+    PUT /api/configuracion/capacidad_maxima
+    Authorization: Bearer <token_admin>
+    Content-Type: application/json
+
+    { "valor": "250" }
+    ```
+
+    En la interfaz, el campo se encuentra en **Configuraciones → Parámetros Operativos → Aforo Máximo Diario**. Haga clic en **Actualizar Aforo** para confirmar.
+  </Tab>
+  <Tab title="Capacidad por Turno">
+    **Clave:** `capacidad_por_turno` | **Por defecto:** `80`
+
+    Controla cuántas personas pueden compartir un mismo horario de entrada (por ejemplo, 09:00 hs). Si se registran grupos en distintas reservas con el mismo turno horario, el sistema suma su cantidad de personas y bloquea nuevas incorporaciones cuando se supera este límite.
+
+    ```http
+    PUT /api/configuracion/capacidad_por_turno
+    Authorization: Bearer <token_admin>
+    Content-Type: application/json
+
+    { "valor": "60" }
+    ```
+
+    En la interfaz, el campo está en **Configuraciones → Capacidad por Turno**. Haga clic en **Actualizar Cap. Turno** para guardar.
+  </Tab>
+  <Tab title="Timeout de Sesión">
+    **Clave:** `session_timeout_minutes` | **Por defecto:** `30`
+
+    Determina los minutos de inactividad tras los cuales el sistema cierra la sesión automáticamente. El frontend muestra una advertencia 1 minuto antes del cierre para que el usuario pueda extender su sesión. El rango válido es **1 a 480 minutos**.
+
+    ```http
+    PUT /api/configuracion/session_timeout_minutes
+    Authorization: Bearer <token_admin>
+    Content-Type: application/json
+
+    { "valor": "60" }
+    ```
+
+    En la interfaz, el campo está en **Configuraciones → Seguridad de Sesión → Cierre automático por inactividad**. Si el valor enviado es menor a 1 o mayor a 480, la interfaz muestra el error: *"El valor debe estar entre 1 y 480 minutos."*
+  </Tab>
+</Tabs>
+
+## Trazabilidad de cambios
+
+Cada modificación de configuración realizada a través de `PUT /api/configuracion/:clave` genera automáticamente un registro en la tabla `LOGAUDITORIA`. Esto permite a los Admins rastrear exactamente quién cambió qué parámetro y cuándo, directamente desde el módulo de [Auditoría](/guias/auditoria).
+
+<Info>
+  No existe un endpoint para eliminar o crear nuevas claves desde la API pública. La gestión del catálogo de claves disponibles se realiza directamente en la base de datos por el equipo técnico. Desde la interfaz y la API solo es posible **leer** y **actualizar** claves existentes.
+</Info>

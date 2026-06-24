@@ -1,0 +1,324 @@
+---
+title: "Visitas API — Gestor de Visitas Túnel Subfluvial"
+sidebarTitle: "Visitas"
+description: "Create, retrieve, update, and cancel tunnel visits. Covers daily dashboard, date ranges, pagination, calendar occupancy, and cancellation workflows."
+---
+
+The Visitas endpoints are the core of the Túnel Subfluvial visitor management system. They handle everything from the daily operations dashboard to full visit history, capacity validation, and state transitions. All endpoints require a valid `Authorization: Bearer <token>` header.
+
+---
+
+## GET /api/visitas
+
+Returns all visits scheduled for a specific day. Used by the operational dashboard. When no `fecha` is supplied the server defaults to today's date.
+
+**Response shape:** `{ fecha, total, data: [...visitas] }`
+
+<ParamField query="fecha" type="string">
+  Target date in `YYYY-MM-DD` format. Defaults to the current server date when omitted.
+</ParamField>
+
+<ResponseField name="fecha" type="string">
+  The date that was queried, in `YYYY-MM-DD` format.
+</ResponseField>
+<ResponseField name="total" type="number">
+  Total number of visits found for that date.
+</ResponseField>
+<ResponseField name="data" type="array">
+  Array of visit objects for the requested day.
+</ResponseField>
+
+```bash
+curl -X GET "https://api.example.com/api/visitas?fecha=2025-08-15" \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Success — visit list returned |
+| `401`  | Missing or invalid token |
+| `500`  | Internal server error |
+
+---
+
+## GET /api/visitas/rango
+
+Returns all visits that fall within a given date range. Both `desde` and `hasta` are required; omitting either returns a `400` error. The response is a flat array of visit objects.
+
+<ParamField query="desde" type="string" required>
+  Start of the range in `YYYY-MM-DD` format.
+</ParamField>
+<ParamField query="hasta" type="string" required>
+  End of the range in `YYYY-MM-DD` format (inclusive).
+</ParamField>
+
+<ResponseField name="(array)" type="array">
+  Flat array of visit objects that fall within the requested range.
+</ResponseField>
+
+```bash
+curl -X GET "https://api.example.com/api/visitas/rango?desde=2025-08-01&hasta=2025-08-31" \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Success — array of visits returned |
+| `400`  | Missing `desde` or `hasta` parameter |
+| `401`  | Missing or invalid token |
+| `500`  | Internal server error |
+
+---
+
+## GET /api/visitas/historial
+
+Returns the complete visit history in paginated form. Intended for the "Visitantes e Instituciones" view. Results are ordered chronologically; adjust `page` and `pageSize` to navigate through large datasets.
+
+<ParamField query="page" type="number">
+  Page number to retrieve. Defaults to `1`.
+</ParamField>
+<ParamField query="pageSize" type="number">
+  Number of records per page. Defaults to `50`.
+</ParamField>
+
+<ResponseField name="data" type="array">
+  Array of visit objects for the requested page.
+</ResponseField>
+<ResponseField name="total" type="number">
+  Total number of visits across all pages.
+</ResponseField>
+<ResponseField name="page" type="number">
+  The current page number returned.
+</ResponseField>
+<ResponseField name="pageSize" type="number">
+  The page size used for this response.
+</ResponseField>
+
+```bash
+curl -X GET "https://api.example.com/api/visitas/historial?page=2&pageSize=25" \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Success — paginated history returned |
+| `401`  | Missing or invalid token |
+| `500`  | Internal server error |
+
+---
+
+## GET /api/visitas/calendario
+
+Returns per-day occupancy data for an entire month, used to render the monthly calendar view. Defaults to the current year and month when no parameters are provided.
+
+<ParamField query="anio" type="number">
+  Four-digit year (e.g. `2025`). Defaults to the current year.
+</ParamField>
+<ParamField query="mes" type="number">
+  Month number from `1` (January) to `12` (December). Defaults to the current month.
+</ParamField>
+
+<ResponseField name="(array)" type="array">
+  Array of daily occupancy objects. Each entry contains the date and the visit counts for that day, used by the frontend calendar component to indicate availability.
+</ResponseField>
+
+```bash
+curl -X GET "https://api.example.com/api/visitas/calendario?anio=2025&mes=8" \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Success — monthly occupancy data returned |
+| `401`  | Missing or invalid token |
+| `500`  | Internal server error |
+
+---
+
+## GET /api/visitas/:id
+
+Returns the complete detail of a single visit, including its associated gestor, group, and institution data. Returns `404` if no visit with the given ID exists.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the visit.
+</ParamField>
+
+<ResponseField name="id" type="string">
+  Unique visit identifier.
+</ResponseField>
+<ResponseField name="fecha" type="string">
+  Visit date in `YYYY-MM-DD` format.
+</ResponseField>
+<ResponseField name="tipo" type="string">
+  Visit type: `Salón de visitas` or `Salón + Sala de Comando`.
+</ResponseField>
+<ResponseField name="estado" type="string">
+  Current visit state: `Agendada`, `Cancelada`, or `Realizada`.
+</ResponseField>
+<ResponseField name="gestor" type="object">
+  Nested gestor object containing contact details.
+</ResponseField>
+<ResponseField name="grupo" type="object">
+  Group details including institution name and visitor count.
+</ResponseField>
+
+```bash
+curl -X GET "https://api.example.com/api/visitas/42" \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Success — full visit detail returned |
+| `401`  | Missing or invalid token |
+| `404`  | No visit found with the given ID |
+
+---
+
+## POST /api/visitas
+
+Registers a new visit in the system. The service layer runs all business-rule validations — non-business days, daily capacity limits, and per-shift capacity — before committing the insertion inside a database transaction.
+
+**Request body fields:**
+
+<ParamField body="fecha" type="string" required>
+  Scheduled visit date in `YYYY-MM-DD` format.
+</ParamField>
+<ParamField body="turno" type="string" required>
+  Time slot or shift for the visit.
+</ParamField>
+<ParamField body="tipo" type="string" required>
+  Visit type: `Salón de visitas` or `Salón + Sala de Comando`.
+</ParamField>
+<ParamField body="gestor_id" type="number" required>
+  ID of an existing gestor who is coordinating this visit.
+</ParamField>
+<ParamField body="institucion" type="string">
+  Name of the visiting institution or group.
+</ParamField>
+<ParamField body="cantidad_visitantes" type="number">
+  Expected number of visitors attending.
+</ParamField>
+<ParamField body="observaciones" type="string">
+  Optional free-text notes about the visit.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Human-readable confirmation message on success.
+</ResponseField>
+<ResponseField name="visita_id" type="number">
+  The ID of the newly created visit.
+</ResponseField>
+
+```bash
+curl -X POST "https://api.example.com/api/visitas" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fecha": "2025-09-10",
+    "turno": "Mañana",
+    "tipo": "Salón de visitas",
+    "gestor_id": 7,
+    "institucion": "Escuela Técnica N°2",
+    "cantidad_visitantes": 30,
+    "observaciones": "Grupo de estudiantes de último año"
+  }'
+```
+
+| Status | Meaning |
+|--------|---------|
+| `201`  | Visit created — returns `{ mensaje, visita_id }` |
+| `400`  | Validation failed: non-business day, daily capacity exceeded, or shift capacity exceeded |
+| `401`  | Missing or invalid token |
+
+---
+
+## PUT /api/visitas/:id
+
+Updates an existing visit's data. If the date, shift, or type fields are changed the service re-runs all capacity and availability validations before persisting. Invalid `estado` values are rejected at the controller level before reaching the service.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the visit to update.
+</ParamField>
+<ParamField body="fecha" type="string">
+  New visit date in `YYYY-MM-DD` format.
+</ParamField>
+<ParamField body="turno" type="string">
+  New time slot or shift.
+</ParamField>
+<ParamField body="tipo" type="string">
+  Visit type: `Salón de visitas` or `Salón + Sala de Comando`.
+</ParamField>
+<ParamField body="estado" type="string">
+  New state: must be one of `Agendada`, `Cancelada`, or `Realizada`.
+</ParamField>
+<ParamField body="gestor_id" type="number">
+  Replacement gestor ID.
+</ParamField>
+<ParamField body="institucion" type="string">
+  Updated institution name.
+</ParamField>
+<ParamField body="cantidad_visitantes" type="number">
+  Updated visitor count.
+</ParamField>
+<ParamField body="observaciones" type="string">
+  Updated free-text notes.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Human-readable confirmation message.
+</ResponseField>
+<ResponseField name="visita" type="object">
+  The full updated visit object as persisted in the database.
+</ResponseField>
+
+```bash
+curl -X PUT "https://api.example.com/api/visitas/42" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "estado": "Realizada",
+    "observaciones": "Visita completada sin inconvenientes"
+  }'
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Visit updated — returns `{ mensaje, visita }` |
+| `400`  | Invalid `estado` value, capacity conflict, or other validation error |
+| `401`  | Missing or invalid token |
+
+---
+
+## PATCH /api/visitas/:id/cancelar
+
+Cancels a visit and records the reason in the audit log. The `motivo` field should describe why the visit is being cancelled. Returns `404` if the visit does not exist and `409` if it has already been cancelled.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the visit to cancel.
+</ParamField>
+<ParamField body="motivo" type="string" required>
+  The reason for cancellation, stored in the audit trail.
+</ParamField>
+
+<ResponseField name="mensaje" type="string">
+  Confirmation message: `"Visita cancelada exitosamente"`.
+</ResponseField>
+<ResponseField name="visita" type="object">
+  The updated visit object with `estado` set to `Cancelada`.
+</ResponseField>
+
+```bash
+curl -X PATCH "https://api.example.com/api/visitas/42/cancelar" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{ "motivo": "Grupo no pudo asistir por condiciones climáticas" }'
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Visit cancelled — returns `{ mensaje, visita }` |
+| `401`  | Missing or invalid token |
+| `404`  | No visit found with the given ID |
+| `409`  | Visit is already in `Cancelada` state |
+| `500`  | Unexpected server error |

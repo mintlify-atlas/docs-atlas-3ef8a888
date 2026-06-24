@@ -1,0 +1,159 @@
+---
+title: "Días Inhábiles: Bloqueo del Calendario de Visitas al Túnel"
+sidebarTitle: "Días Inhábiles"
+description: "Configure fechas en que el túnel no recibe visitas. Feriados nacionales, mantenimiento y eventos especiales bloquean automáticamente el calendario."
+---
+
+Los **días inhábiles** son fechas en las que el túnel subfluvial no puede recibir visitas. Cuando una fecha está registrada en la tabla `DIAINHABIL`, el backend rechaza cualquier intento de registrar una visita para ese día con un error `400`, y la interfaz de calendario la marca visualmente como no disponible. Esta funcionalidad es esencial para gestionar feriados nacionales, cierres por mantenimiento programado o cualquier evento que suspenda la actividad operativa del túnel.
+
+<CardGroup cols={3}>
+  <Card
+    title="Feriados Nacionales"
+    icon="flag"
+    href="#agregar-un-dia-inhabil"
+  >
+    Bloquee automáticamente todos los feriados del calendario oficial argentino.
+  </Card>
+  <Card
+    title="Mantenimiento"
+    icon="wrench"
+    href="#agregar-un-dia-inhabil"
+  >
+    Reserve fechas para trabajos de infraestructura, inspecciones técnicas o limpieza.
+  </Card>
+  <Card
+    title="Eventos Especiales"
+    icon="calendar-days"
+    href="#agregar-un-dia-inhabil"
+  >
+    Bloquee el túnel por eventos institucionales, actividades de seguridad u otras causas.
+  </Card>
+</CardGroup>
+
+## Control de acceso
+
+La lectura del listado de días inhábiles está disponible para todos los usuarios autenticados (el frontend la usa para marcar el calendario). La creación y eliminación están restringidas al rol **Admin**.
+
+| Método | Ruta | Requiere | Descripción |
+|--------|------|----------|-------------|
+| `GET` | `/api/dias-inhabiles` | Token válido (cualquier rol) | Lista todos los días inhábiles registrados |
+| `POST` | `/api/dias-inhabiles` | Admin | Registra una nueva fecha como inhábil |
+| `DELETE` | `/api/dias-inhabiles/:id` | Admin | Elimina el bloqueo y habilita la fecha nuevamente |
+
+## Cómo afectan al registro de visitas
+
+Cuando un Guía o Admin intenta registrar una visita para una fecha que figura en la tabla `DIAINHABIL`, el backend devuelve inmediatamente:
+
+```http
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{ "error": "La fecha seleccionada es un día inhábil y no puede recibir visitas." }
+```
+
+La verificación ocurre en el momento de la inserción de la visita, antes de cualquier chequeo de aforo o capacidad por turno. Si la fecha también está bloqueada en el calendario visual, el selector de fecha de la interfaz no permitirá seleccionarla directamente.
+
+## Listar días inhábiles
+
+```http
+GET /api/dias-inhabiles
+Authorization: Bearer <token>
+```
+
+**Respuesta exitosa (`200`):**
+
+```json
+[
+  { "id": 1, "fecha": "2025-07-09", "descripcion": "Día de la Independencia Argentina" },
+  { "id": 2, "fecha": "2025-08-15", "descripcion": "Mantenimiento anual de ventilación" },
+  { "id": 3, "fecha": "2025-10-13", "descripcion": "Simulacro de evacuación regional" }
+]
+```
+
+La lista se presenta en la interfaz como una tabla con columnas **Fecha Bloqueada**, **Motivo del Bloqueo** y un botón de eliminación. Si no hay fechas registradas, se muestra el mensaje: *"No hay días inhábiles configurados. El calendario está totalmente abierto."*
+
+## Agregar un día inhábil
+
+Solo los Admins pueden agregar nuevas fechas bloqueadas. El formulario rápido está en la parte superior de la sección **Configuraciones → Bloqueo de Calendario**.
+
+<Steps>
+  <Step title="Ingresar la fecha a bloquear">
+    Seleccione la fecha en el campo **Fecha a bloquear** (formato `YYYY-MM-DD`). El selector de fecha del formulario tiene restringido el mínimo a la fecha de hoy, por lo que no es posible seleccionar una fecha pasada desde la interfaz. La fecha debe ser única: si ya existe un registro con esa fecha, la API responde `409 Conflict`.
+  </Step>
+  <Step title="Describir el motivo">
+    Complete el campo **Motivo / Descripción** con el motivo del bloqueo (por ejemplo, `"Feriado nacional - Día de la Independencia"` o `"Mantenimiento de iluminación"`). Este campo es **obligatorio**: si se omite, la API responde `400` con *"La fecha y descripción son obligatorias"*.
+  </Step>
+  <Step title="Confirmar el bloqueo">
+    Haga clic en **Agregar Día**. Si la operación es exitosa, el servidor responde `201 Created` con el objeto del nuevo día inhábil y la tabla se actualiza automáticamente mostrando la nueva fila.
+  </Step>
+</Steps>
+
+<Warning>
+  **No se pueden registrar fechas pasadas.** Si el cuerpo de la solicitud incluye una `fecha` anterior a la fecha actual, el servicio backend rechaza la operación con `400 Bad Request`. Esta validación existe tanto en la interfaz (el `<input type="date">` tiene `min` igual al día de hoy) como en la lógica del servidor, asegurando coherencia incluso para llamadas directas a la API.
+</Warning>
+
+**Endpoint correspondiente:**
+
+```http
+POST /api/dias-inhabiles
+Authorization: Bearer <token_admin>
+Content-Type: application/json
+
+{
+  "fecha": "2025-07-09",
+  "descripcion": "Día de la Independencia Argentina"
+}
+```
+
+**Respuesta exitosa (`201`):**
+
+```json
+{
+  "id": 4,
+  "fecha": "2025-07-09",
+  "descripcion": "Día de la Independencia Argentina"
+}
+```
+
+**Errores posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| `400` | `"La fecha y descripción son obligatorias"` | Alguno de los campos del body está ausente |
+| `400` | `"No se puede registrar una fecha pasada"` | La fecha es anterior a hoy |
+| `409` | `"La fecha ya está registrada como día inhábil"` | Fecha duplicada en la tabla |
+
+## Eliminar un día inhábil
+
+Para volver a habilitar una fecha bloqueada, utilice el botón de eliminar (ícono de papelera) en la fila correspondiente de la tabla, o llame directamente al endpoint:
+
+```http
+DELETE /api/dias-inhabiles/:id
+Authorization: Bearer <token_admin>
+```
+
+**Respuesta exitosa:** `204 No Content` (sin cuerpo).
+
+Una vez eliminado el registro, el sistema acepta nuevamente visitas para esa fecha, siempre que no se supere el aforo diario ni la capacidad por turno configurados.
+
+<Tip>
+  Para el comienzo de cada año operativo, cargue todos los feriados nacionales de una sola vez. Puede utilizar el calendario oficial de feriados de la República Argentina (publicado por el Ministerio del Interior) como referencia y agregar cada fecha individualmente mediante llamadas consecutivas al endpoint `POST /api/dias-inhabiles`.
+</Tip>
+
+## Casos de uso comunes
+
+<Accordion title="Feriados nacionales inamovibles">
+  Los feriados fijos del calendario argentino (1 de enero, 1 de mayo, 9 de julio, 25 de mayo, 8 de diciembre, 25 de diciembre, etc.) deben cargarse al inicio del año. Use como descripción el nombre oficial del feriado para facilitar la lectura del calendario y el historial de auditoría.
+</Accordion>
+
+<Accordion title="Feriados con puente o traslado">
+  Cuando la normativa nacional decreta feriados puente o traslada un feriado a lunes o viernes, agregue la nueva fecha con la descripción `"Feriado con puente — [nombre original]"` para mantener la trazabilidad.
+</Accordion>
+
+<Accordion title="Mantenimiento programado">
+  Los cierres por mantenimiento (inspecciones de ventilación, pruebas de iluminación de emergencia, revisión de la calzada interior) suelen planificarse con semanas de anticipación. Regístrelos tan pronto como se confirme la fecha con el equipo técnico para que los visitantes y el personal operativo lo vean en el calendario.
+</Accordion>
+
+<Accordion title="Eventos institucionales o de seguridad">
+  Cuando se realizan simulacros de evacuación, visitas de autoridades o eventos de alto impacto en la zona del túnel, bloquee el día con la descripción del evento. Esto queda registrado en el log de auditoría asociado al Admin que realizó el bloqueo.
+</Accordion>

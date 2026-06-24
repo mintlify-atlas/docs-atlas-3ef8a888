@@ -1,0 +1,149 @@
+---
+title: "Log de Auditoría — Trazabilidad de Acciones del Sistema"
+sidebarTitle: "Auditoría"
+description: "Consulta el registro inmutable de todas las acciones administrativas: altas, bajas, modificaciones de visitas, usuarios, configuración y días inhábiles."
+---
+
+El log de auditoría (`LogAuditoria`) es un registro cronológico e inmutable de todas las acciones significativas realizadas en el sistema. Cada vez que un usuario crea, modifica o elimina un recurso crítico, el servicio correspondiente inserta una entrada en esta tabla dentro de la misma transacción de base de datos, garantizando la coherencia entre la acción y su traza.
+
+<Note>
+  El log de auditoría es de solo lectura desde la API. No existen endpoints `PUT` ni `DELETE` sobre este recurso. Los registros solo pueden crearse internamente por los servicios del backend, y nunca pueden modificarse ni eliminarse, ni siquiera por administradores. Esto garantiza la integridad de la trazabilidad para fines de cumplimiento y auditoría forense.
+</Note>
+
+---
+
+## Eventos que generan entradas de auditoría
+
+El sistema registra automáticamente las siguientes categorías de acciones:
+
+| Categoría | Ejemplos de acciones registradas |
+|---|---|
+| **Visitas** | Creación, modificación de estado y cancelación de visitas grupales |
+| **Usuarios** | Alta de nuevos usuarios, cambios de rol, desactivación de cuentas |
+| **Configuración** | Actualización de parámetros (`capacidad_maxima`, `capacidad_por_turno`, `session_timeout_minutes`) |
+| **Días inhábiles** | Bloqueo de una fecha (`Bloqueó el día DD/MM/YYYY`) y desbloqueo (`Desbloqueó el día DD/MM/YYYY`) |
+| **Instituciones** | Registro de nuevas instituciones (`Registró nueva institución "<nombre>"`) |
+
+Cada entrada guarda la descripción textual de la acción (campo `accion`), el email y rol del usuario que la realizó, y la marca temporal exacta del momento en que ocurrió.
+
+---
+
+## GET /api/auditoria
+
+Devuelve las entradas más recientes del log de auditoría, ordenadas de la más reciente a la más antigua.
+
+**Autenticación:** `Authorization: Bearer <token>` — requiere rol **Admin**.
+
+### Parámetros de consulta
+
+<ParamField query="limite" type="integer">
+  Cantidad máxima de entradas a devolver. Valor por defecto: `100`. Permite reducir el tamaño de la respuesta en entornos con alta actividad.
+</ParamField>
+
+### Respuesta exitosa `200 OK`
+
+Un arreglo de objetos de log ordenados por `fecha` descendente (el evento más reciente aparece primero). Puede ser un arreglo vacío `[]` si no hay registros.
+
+<ResponseField name="id" type="integer">
+  Identificador único e irrepetible de la entrada de auditoría.
+</ResponseField>
+
+<ResponseField name="accion" type="string">
+  Descripción legible en lenguaje natural de la acción realizada. Por ejemplo: `Actualizó configuración "Aforo máximo diario" de "300" a "250"`.
+</ResponseField>
+
+<ResponseField name="fecha" type="string">
+  Marca temporal ISO 8601 del momento exacto en que ocurrió la acción (columna `created_at` de la tabla `LogAuditoria`).
+</ResponseField>
+
+<ResponseField name="usuario_email" type="string | null">
+  Correo electrónico del usuario que realizó la acción, obtenido mediante JOIN con la tabla `Usuario`. Puede ser `null` si el usuario fue eliminado del sistema con posterioridad.
+</ResponseField>
+
+<ResponseField name="usuario_rol" type="string | null">
+  Rol del usuario al momento de la consulta (`"Admin"`, `"Guia"`, etc.). Puede ser `null` si el usuario ya no existe.
+</ResponseField>
+
+### Ejemplo — consulta por defecto (últimos 100 registros)
+
+```bash
+curl -X GET https://api.example.com/api/auditoria \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+[
+  {
+    "id": 47,
+    "accion": "Actualizó configuración \"Aforo máximo diario\" de \"300\" a \"250\"",
+    "fecha": "2025-06-10T14:32:11.000Z",
+    "usuario_email": "admin@tunel.gob.ar",
+    "usuario_rol": "Admin"
+  },
+  {
+    "id": 46,
+    "accion": "Bloqueó el día 09/07/2025 (\"Feriado Nacional — Día de la Independencia\")",
+    "fecha": "2025-06-10T11:15:44.000Z",
+    "usuario_email": "admin@tunel.gob.ar",
+    "usuario_rol": "Admin"
+  },
+  {
+    "id": 45,
+    "accion": "Registró nueva institución \"Colegio Secundario Belgrano\"",
+    "fecha": "2025-06-09T09:05:22.000Z",
+    "usuario_email": "guia01@tunel.gob.ar",
+    "usuario_rol": "Guia"
+  },
+  {
+    "id": 44,
+    "accion": "Actualizó configuración \"Timeout de sesión\" de \"30\" a \"15\"",
+    "fecha": "2025-06-08T16:50:03.000Z",
+    "usuario_email": "admin@tunel.gob.ar",
+    "usuario_rol": "Admin"
+  },
+  {
+    "id": 43,
+    "accion": "Desbloqueó el día 15/08/2025 (\"Mantenimiento programado de infraestructura\")",
+    "fecha": "2025-06-08T10:22:17.000Z",
+    "usuario_email": "admin@tunel.gob.ar",
+    "usuario_rol": "Admin"
+  }
+]
+```
+
+### Ejemplo — limitar a los últimos 10 registros
+
+```bash
+curl -X GET "https://api.example.com/api/auditoria?limite=10" \
+  -H "Authorization: Bearer <token>"
+```
+
+### Respuestas de error
+
+| Código | Descripción |
+|---|---|
+| `401 Unauthorized` | Token ausente o inválido. |
+| `403 Forbidden` | El usuario autenticado no tiene rol Admin. |
+| `500 Internal Server Error` | Error interno al consultar la base de datos. Responde con `{ "error": "Error al consultar la auditoría" }`. |
+
+---
+
+## Uso para cumplimiento e investigación de incidentes
+
+El log de auditoría está diseñado para dar respuesta a preguntas operativas y de seguridad:
+
+**¿Quién cambió un parámetro de configuración?**
+Filtra visualmente las entradas cuyo campo `accion` comience con `Actualizó configuración`. El campo `usuario_email` identifica al administrador responsable.
+
+**¿Qué ocurrió en una ventana de tiempo específica?**
+Solicita el log y aplica un filtro local sobre el campo `fecha`. Si el volumen de registros es alto, utiliza el parámetro `?limite=` para acotar la respuesta y paginar manualmente.
+
+**¿Se bloqueó o desbloqueó un día inhábil inesperadamente?**
+Busca entradas con `"Bloqueó"` o `"Desbloqueó"` en `accion`. La descripción entre comillas coincide con el texto ingresado al crear el día inhábil.
+
+**¿Qué instituciones se han dado de alta recientemente?**
+Busca entradas que comiencen con `"Registró nueva institución"`.
+
+<Tip>
+  Para investigaciones de incidentes, considera exportar el log completo con un `?limite=` alto (hasta el máximo que permita tu entorno) y procesarlo externamente con herramientas de análisis de logs. La inmutabilidad del registro garantiza que los datos no han sido alterados desde el momento del evento.
+</Tip>

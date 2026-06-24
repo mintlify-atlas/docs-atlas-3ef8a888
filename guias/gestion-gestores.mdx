@@ -1,0 +1,127 @@
+---
+title: "Gestión de Gestores e Instituciones Educativas"
+sidebarTitle: "Gestores"
+description: "Aprenda a administrar el directorio de gestores y las instituciones educativas vinculadas, con sus campos, tipos y relaciones con los grupos de visita."
+---
+
+Los gestores son las personas o entidades responsables de coordinar y presentar a los grupos que visitan el túnel. Cada visita registrada en el sistema está asociada a un gestor, y cada grupo institucional está adicionalmente vinculado a una institución educativa. La página de gestores (`/gestores`) centraliza el alta, consulta, edición y eliminación de estos registros en una sola pantalla con diseño de dos columnas: formulario de creación a la izquierda y tabla de directorio a la derecha.
+
+## ¿Qué es un Gestor?
+
+Un **Gestor** representa al coordinador responsable de una visita. Puede ser el docente de una escuela, un guía de una agencia de turismo, el representante de un club o simplemente un particular que organiza una excursión familiar. El gestor se selecciona en el formulario de registro de visitas y queda vinculado permanentemente al registro de la visita.
+
+<Note>
+  Un **Gestor** es la persona que tramita la visita; una **Institución** es la entidad educativa (escuela, colegio, universidad) a la que pertenece el grupo. Son dos entidades separadas en la base de datos. Un gestor de tipo "Institución Educativa" puede coordinar grupos de distintas instituciones en visitas diferentes. La institución se asocia al **grupo** (`Grupo.institucion_id`), no directamente al gestor.
+</Note>
+
+## Tipos de gestor
+
+| Tipo | Uso típico |
+|---|---|
+| `Institución Educativa` | Docentes, directivos o coordinadores de escuelas y universidades |
+| `Agencia de Turismo` | Guías o representantes de agencias que organizan excursiones |
+| `Club / Asociación` | Responsables de asociaciones vecinales, clubes deportivos o culturales |
+| `Particular / Organismo Público` | Ciudadanos, organismos gubernamentales u otras entidades |
+
+## Campos del gestor
+
+| Campo | Tipo | Obligatorio | Descripción |
+|---|---|---|---|
+| `nombre` | Texto | ✅ | Nombre completo de la persona o razón social de la entidad |
+| `tipo` | Enum | ✅ | Tipo de gestor (ver tabla anterior) |
+| `empresa_institucion` | Texto | ❌ | Nombre de la empresa, escuela u organismo que representa |
+| `telefono` | Tel | ❌ | Número de teléfono de contacto con código de área |
+| `email` | Email | ❌ | Correo electrónico de contacto |
+| `localidad` | Texto | ❌ | Localidad de origen, con autocompletado Georef |
+| `provincia` | Texto | ❌ | Provincia de origen, con autocompletado Georef |
+| `pais` | Texto | ❌ | País de origen (default: `Argentina`) |
+
+## Operaciones CRUD
+
+<Tabs>
+  <Tab title="Listar">
+    Al cargar la página, el sistema ejecuta `GET /api/gestores` con el token en el encabezado `Authorization`. La respuesta es un array de objetos gestor que se muestra en la tabla de directorio. Un campo de búsqueda en la parte superior de la tabla filtra los resultados por nombre en tiempo real (filtrado en el cliente, no requiere nueva petición).
+  </Tab>
+  <Tab title="Crear">
+    El formulario de la columna izquierda envía `POST /api/gestores` con los campos completados. Al guardar exitosamente, aparece un mensaje de confirmación verde y la tabla se recarga automáticamente. El formulario se limpia para permitir el registro de otro gestor de inmediato.
+
+    ```json
+    // POST /api/gestores — ejemplo de payload
+    {
+      "nombre": "María González",
+      "tipo": "Institución Educativa",
+      "empresa_institucion": "Escuela Normal José de San Martín",
+      "telefono": "0343-4123456",
+      "email": "mgonzalez@escuela.edu.ar",
+      "localidad": "Paraná",
+      "provincia": "Entre Ríos",
+      "pais": "Argentina"
+    }
+    ```
+  </Tab>
+  <Tab title="Editar">
+    El ícono de lápiz en la columna de acciones abre un modal de edición pre-poblado con los datos del gestor seleccionado. Al guardar, se ejecuta `PUT /api/gestores/:id` con el objeto completo actualizado. El modal se cierra automáticamente 1,2 segundos después de mostrar el mensaje de éxito.
+  </Tab>
+  <Tab title="Eliminar (Admin)">
+    El ícono de papelera solo es visible para usuarios con rol `Admin`. Al hacer clic se muestra un diálogo de confirmación nativo del navegador. Si el usuario confirma, se ejecuta `DELETE /api/gestores/:id`. Si el gestor tiene visitas asociadas en la base de datos, el backend devolverá un error de integridad referencial y la eliminación no procederá.
+  </Tab>
+</Tabs>
+
+## La entidad Institución
+
+La **Institución** representa la entidad educativa a la que pertenece un grupo de visita. Es un catálogo independiente del directorio de gestores.
+
+<Note>
+  La Institución **no es un Gestor**. Mientras el Gestor es la persona que coordina, la Institución es la escuela o universidad de la que provienen los alumnos. Un mismo gestor puede llevar grupos de distintas instituciones. Y una misma institución puede tener distintos gestores en distintas visitas.
+</Note>
+
+### Campos de la Institución
+
+| Campo | Tipo | Obligatorio | Descripción |
+|---|---|---|---|
+| `nombre` | Texto | ✅ | Nombre oficial de la institución educativa |
+| `telefono` | Tel | ❌ | Teléfono de contacto de la institución |
+| `email` | Email | ❌ | Correo electrónico institucional |
+| `localidad` | Texto | ❌ | Localidad donde se ubica la institución |
+| `provincia` | Texto | ❌ | Provincia donde se ubica la institución |
+| `pais` | Texto | ❌ | País de la institución (default: `Argentina`) |
+
+### Endpoints de Institución
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| `GET` | `/api/instituciones` | Lista todas las instituciones registradas |
+| `POST` | `/api/instituciones` | Crea una nueva institución |
+
+## El Grupo: nexo entre Gestor e Institución
+
+La entidad **Grupo** es creada automáticamente al registrar una visita. Vincula al Gestor con la Institución (en visitas educativas) y almacena la información del tipo de visitantes.
+
+<CardGroup cols={2}>
+  <Card title="Grupos Institucionales" icon="school" href="/guias/registro-visitas">
+    Vinculan un Gestor con una Institución educativa. Almacenan el `nivel_educativo` del grupo: Infantes, Primario, Secundario, Terciario, Universitario o Adultos Mayores.
+  </Card>
+  <Card title="Grupos Particulares" icon="users" href="/guias/registro-visitas">
+    Solo tienen Gestor, sin institución. Almacenan `nombre`, `tipo_grupo` (Menores, Adultos o Mixto), teléfono, email y ubicación geográfica del grupo.
+  </Card>
+</CardGroup>
+
+## Crear gestores e instituciones desde el formulario de visitas
+
+Para agilizar el flujo de trabajo, el formulario de registro de visitas incluye botones **"Nuevo"** junto a los selectores de gestor y de institución. Al hacer clic se abre un modal de creación en línea sin necesidad de abandonar el formulario.
+
+<Steps>
+  <Step title="Clic en 'Nuevo' junto al selector de Gestor">
+    Se abre el modal con el formulario de gestor. Completa los campos obligatorios (nombre y tipo) y los opcionales que tengas disponibles.
+  </Step>
+  <Step title="Guardar el gestor nuevo">
+    Al hacer clic en "Guardar Gestor", se ejecuta `POST /api/gestores`. Si el servidor responde con éxito, el nuevo gestor se agrega a la lista local y se selecciona automáticamente en el formulario principal.
+  </Step>
+  <Step title="Crear institución nueva (solo visitas educativas)">
+    Si el tipo de visitante es "Institución" y la institución no existe, haz clic en "Nueva" junto al selector de institución. Completa el modal y guarda. La institución recién creada se selecciona automáticamente.
+  </Step>
+</Steps>
+
+<Tip>
+  Los gestores e instituciones creados "en el acto" desde el formulario de visitas también quedan disponibles en el directorio de la página `/gestores` para su uso en futuras visitas. No es necesario registrarlos por separado si ya los creaste durante el registro de una visita.
+</Tip>

@@ -1,0 +1,184 @@
+---
+title: "API del Túnel Subfluvial — Descripción General"
+sidebarTitle: "Descripción General"
+description: "Visión general de la REST API del sistema de gestión de visitas: arquitectura, autenticación JWT, formatos, CORS, control de acceso por rol y endpoints disponibles."
+---
+
+La API del Túnel Subfluvial es una interfaz REST construida con **Node.js, Express 5 y TypeScript**, respaldada por una base de datos **PostgreSQL**. Expone todos los recursos necesarios para gestionar visitas guiadas, usuarios, estadísticas, configuración, auditoría e instituciones a través de rutas prefijadas en `/api/`. Todos los endpoints, salvo el inicio de sesión, requieren autenticación mediante **JWT Bearer token**.
+
+## URL base y configuración de entorno
+
+El servidor escucha en el puerto definido por la variable de entorno `PORT`. Si no está definida, usa el puerto **3000** por defecto.
+
+```
+http://localhost:3000   (desarrollo por defecto)
+```
+
+| Variable de entorno | Propósito | Valor por defecto |
+|---|---|---|
+| `PORT` | Puerto en que escucha el servidor | `3000` |
+| `FRONTEND_URL` | Origen permitido por CORS | `http://localhost:5173` |
+| `JWT_SECRET` | Clave secreta para firmar los tokens JWT | *(requerida)* |
+| `JWT_EXPIRY` | Duración del token JWT | `24h` |
+| `DATABASE_URL` | Cadena de conexión a PostgreSQL | *(requerida)* |
+
+<Note>
+  `JWT_SECRET` y `DATABASE_URL` son obligatorias. El servidor registrará un error fatal y rechazará peticiones autenticadas si `JWT_SECRET` no está definida.
+</Note>
+
+## Autenticación
+
+La API usa **JSON Web Tokens (JWT)** transmitidos como Bearer token en la cabecera `Authorization`. El único endpoint público es `POST /api/auth/login`; todos los demás requieren un token válido.
+
+```http
+Authorization: Bearer <token>
+```
+
+El token se obtiene en el login y contiene el `id`, `nombre` y `rol` del usuario. La duración del token se controla con la variable `JWT_EXPIRY` (por defecto `24h`). Consulta la página de [Autenticación](/api/autenticacion) para el flujo completo.
+
+## Formato de las peticiones y respuestas
+
+Todas las peticiones y respuestas usan `application/json`. Incluye siempre la cabecera `Content-Type` en las peticiones con cuerpo.
+
+```http
+Content-Type: application/json
+```
+
+### Formato de error estándar
+
+Cuando una petición falla, la API devuelve un objeto JSON con una sola clave `error`:
+
+```json
+{
+  "error": "Descripción del error"
+}
+```
+
+### Formato de éxito
+
+La estructura de la respuesta exitosa varía según el endpoint. Consulta la documentación de cada grupo de rutas para los esquemas específicos.
+
+## Códigos de estado HTTP
+
+| Código | Significado | Cuándo se usa |
+|--------|-------------|---------------|
+| `200 OK` | Éxito | Petición procesada correctamente |
+| `201 Created` | Recurso creado | POST que crea un nuevo recurso |
+| `400 Bad Request` | Petición inválida | Campos requeridos ausentes o datos incorrectos |
+| `401 Unauthorized` | No autenticado | Token ausente, inválido o expirado |
+| `403 Forbidden` | Sin permisos | El rol del usuario no está autorizado |
+| `404 Not Found` | No encontrado | El recurso solicitado no existe |
+| `500 Internal Server Error` | Error del servidor | Error inesperado en el servidor |
+
+## Configuración CORS
+
+El servidor tiene CORS habilitado para el origen configurado en `FRONTEND_URL`. Los métodos y cabeceras permitidos son:
+
+- **Métodos:** `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`
+- **Cabeceras:** `Content-Type`, `Authorization`
+
+<Warning>
+  Las peticiones desde un origen distinto al configurado en `FRONTEND_URL` serán rechazadas por el navegador. Asegúrate de definir esta variable correctamente en producción.
+</Warning>
+
+## Control de acceso por rol
+
+La API implementa control de acceso basado en roles (RBAC) con dos roles disponibles:
+
+| Rol | Descripción |
+|-----|-------------|
+| `Admin` | Acceso completo a todos los endpoints, incluyendo gestión de usuarios, estadísticas y configuración |
+| `Guía` | Acceso limitado; puede gestionar visitas y recursos propios de su función |
+
+El middleware `verificarRol` protege los endpoints exclusivos de administradores. Si un usuario con rol `Guía` intenta acceder a un recurso reservado para `Admin`, recibirá una respuesta **403 Forbidden**:
+
+```json
+{
+  "error": "Acceso denegado. No tienes permisos suficientes para realizar esta acción."
+}
+```
+
+## Health check
+
+Usa este endpoint para verificar que el servidor está en línea sin necesidad de autenticación.
+
+**`GET /api/health`**
+
+```json
+{
+  "status": "ok",
+  "message": "API del Túnel Subfluvial funcionando"
+}
+```
+
+## Grupos de endpoints disponibles
+
+<CardGroup cols={2}>
+  <Card
+    title="Autenticación"
+    icon="key"
+    href="/api/autenticacion"
+  >
+    Inicio de sesión y obtención del token JWT. Único endpoint público de la API.
+  </Card>
+  <Card
+    title="Visitas"
+    icon="calendar-days"
+    href="/api/visitas"
+  >
+    Creación, consulta, modificación y cancelación de visitas guiadas al túnel.
+  </Card>
+  <Card
+    title="Gestores"
+    icon="user-tie"
+    href="/api/gestores"
+  >
+    Administración del personal gestor: listado, alta, actualización y baja.
+  </Card>
+  <Card
+    title="Usuarios"
+    icon="users"
+    href="/api/usuarios"
+  >
+    Gestión de usuarios del sistema, incluyendo cambio de contraseña y activación.
+  </Card>
+  <Card
+    title="Estadísticas y Exportación"
+    icon="chart-bar"
+    href="/api/estadisticas"
+  >
+    Informes estadísticos por rango de fechas y exportación de datos en distintos formatos.
+  </Card>
+  <Card
+    title="Configuración"
+    icon="gear"
+    href="/api/configuracion"
+  >
+    Lectura y escritura de parámetros del sistema, como el timeout de sesión.
+  </Card>
+  <Card
+    title="Días Inhábiles"
+    icon="calendar-xmark"
+    href="/api/dias-inhabiles"
+  >
+    Gestión del calendario de días en los que no se realizan visitas.
+  </Card>
+  <Card
+    title="Instituciones"
+    icon="building"
+    href="/api/instituciones"
+  >
+    Alta y listado de instituciones educativas o grupos visitantes registrados.
+  </Card>
+  <Card
+    title="Auditoría"
+    icon="shield-check"
+    href="/api/auditoria"
+  >
+    Consulta del registro de auditoría de acciones realizadas en el sistema.
+  </Card>
+</CardGroup>
+
+<Tip>
+  Para explorar un grupo de endpoints, selecciona la tarjeta correspondiente. Cada página incluye parámetros, cuerpos de petición y ejemplos con `curl`.
+</Tip>

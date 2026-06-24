@@ -1,0 +1,233 @@
+---
+title: "Instituciones — Organizaciones Vinculadas a Grupos"
+sidebarTitle: "Instituciones"
+description: "Consulta y registra las instituciones educativas u organizaciones que originan las visitas grupales al túnel subfluvial."
+---
+
+Una institución representa la organización de origen de un grupo visitante: puede ser una escuela, universidad, empresa, ONG u otro tipo de entidad. Las instituciones se mantienen como un catálogo independiente al que se vinculan los grupos (`Grupo.institucion_id`) en el momento de registrar una visita. Dado que los guías necesitan asociar instituciones en tiempo real durante el alta de un grupo, la creación de instituciones está disponible para cualquier usuario autenticado, sin restricción de rol.
+
+<Note>
+  Una **institución** es distinta de un **gestor** (el coordinador administrativo que puede tener múltiples grupos a cargo) y de un **grupo** (la delegación concreta que visita el túnel en una fecha y turno determinados). Una misma institución puede tener múltiples grupos registrados en diferentes fechas. El campo `institucion_id` en la tabla `Grupo` establece esta relación de uno a muchos.
+</Note>
+
+El servicio detecta duplicados usando una comparación insensible a mayúsculas sobre los campos `nombre`, `localidad`, `provincia` y `pais`, evitando registros repetidos para la misma entidad.
+
+---
+
+## GET /api/instituciones
+
+Devuelve el catálogo completo de instituciones registradas en el sistema, ordenadas alfabéticamente por nombre.
+
+**Autenticación:** `Authorization: Bearer <token>` — cualquier rol.
+
+### Respuesta exitosa `200 OK`
+
+Un arreglo de objetos institución. Puede ser un arreglo vacío `[]` si todavía no se ha registrado ninguna institución.
+
+<ResponseField name="id" type="integer">
+  Identificador único de la institución en la base de datos.
+</ResponseField>
+
+<ResponseField name="nombre" type="string">
+  Nombre oficial de la institución.
+</ResponseField>
+
+<ResponseField name="telefono" type="string | null">
+  Número de teléfono de contacto. Puede ser `null` si no fue informado al momento del alta.
+</ResponseField>
+
+<ResponseField name="email" type="string | null">
+  Correo electrónico de contacto. Puede ser `null` si no fue informado.
+</ResponseField>
+
+<ResponseField name="localidad" type="string | null">
+  Ciudad o localidad donde se encuentra la institución. Puede ser `null`.
+</ResponseField>
+
+<ResponseField name="provincia" type="string | null">
+  Provincia o estado de la institución. Puede ser `null`.
+</ResponseField>
+
+<ResponseField name="pais" type="string | null">
+  País de la institución. Por defecto `"Argentina"` cuando se crea a través de la API.
+</ResponseField>
+
+### Ejemplo
+
+```bash
+curl -X GET https://api.example.com/api/instituciones \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+[
+  {
+    "id": 1,
+    "nombre": "Escuela Técnica N° 5",
+    "telefono": "0343-4123456",
+    "email": "secretaria@et5.edu.ar",
+    "localidad": "Paraná",
+    "provincia": "Entre Ríos",
+    "pais": "Argentina"
+  },
+  {
+    "id": 2,
+    "nombre": "Universidad Nacional del Litoral",
+    "telefono": null,
+    "email": "extensión@unl.edu.ar",
+    "localidad": "Santa Fe",
+    "provincia": "Santa Fe",
+    "pais": "Argentina"
+  },
+  {
+    "id": 3,
+    "nombre": "Colegio Secundario Belgrano",
+    "telefono": null,
+    "email": null,
+    "localidad": "Diamante",
+    "provincia": "Entre Ríos",
+    "pais": "Argentina"
+  }
+]
+```
+
+### Respuestas de error
+
+| Código | Descripción |
+|---|---|
+| `401 Unauthorized` | Token ausente o inválido. |
+| `500 Internal Server Error` | Error interno al consultar la base de datos. |
+
+---
+
+## POST /api/instituciones
+
+Registra una nueva institución en el catálogo del sistema. El campo `nombre` es el único requerido; el resto de los datos de contacto y ubicación son opcionales y pueden completarse más adelante.
+
+**Autenticación:** `Authorization: Bearer <token>` — cualquier rol.
+
+### Cuerpo de la solicitud
+
+<ParamField body="nombre" type="string" required>
+  Nombre oficial de la institución. No puede estar vacío. Se utiliza junto con `localidad`, `provincia` y `pais` para la detección de duplicados (comparación insensible a mayúsculas).
+</ParamField>
+
+<ParamField body="telefono" type="string">
+  Número de teléfono de contacto. Opcional.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Correo electrónico de contacto. Opcional.
+</ParamField>
+
+<ParamField body="localidad" type="string">
+  Ciudad o localidad de la institución. Opcional. Se usa en la validación de duplicados.
+</ParamField>
+
+<ParamField body="provincia" type="string">
+  Provincia o estado de la institución. Opcional. Se usa en la validación de duplicados.
+</ParamField>
+
+<ParamField body="pais" type="string">
+  País de la institución. Opcional. Si se omite, se almacena como `"Argentina"` por defecto.
+</ParamField>
+
+### Respuesta exitosa `201 Created`
+
+<ResponseField name="mensaje" type="string">
+  Confirmación de la operación. Siempre es `"Institución creada exitosamente"`.
+</ResponseField>
+
+<ResponseField name="institucion" type="object">
+  Objeto con todos los campos de la institución recién creada, tal como quedó almacenada en la base de datos.
+
+  <Expandable title="Campos de institucion">
+    <ResponseField name="institucion.id" type="integer">
+      Identificador único asignado por la base de datos.
+    </ResponseField>
+    <ResponseField name="institucion.nombre" type="string">
+      Nombre de la institución registrada.
+    </ResponseField>
+    <ResponseField name="institucion.telefono" type="string | null">
+      Teléfono informado, o `null` si no se proporcionó.
+    </ResponseField>
+    <ResponseField name="institucion.email" type="string | null">
+      Email informado, o `null` si no se proporcionó.
+    </ResponseField>
+    <ResponseField name="institucion.localidad" type="string | null">
+      Localidad informada, o `null` si no se proporcionó.
+    </ResponseField>
+    <ResponseField name="institucion.provincia" type="string | null">
+      Provincia informada, o `null` si no se proporcionó.
+    </ResponseField>
+    <ResponseField name="institucion.pais" type="string">
+      País almacenado. `"Argentina"` si no se especificó otro.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Ejemplo completo
+
+```bash
+curl -X POST https://api.example.com/api/instituciones \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "Instituto Superior de Formación Docente N° 8",
+    "telefono": "0343-4987654",
+    "email": "info@isfd8.edu.ar",
+    "localidad": "Paraná",
+    "provincia": "Entre Ríos",
+    "pais": "Argentina"
+  }'
+```
+
+```json
+{
+  "mensaje": "Institución creada exitosamente",
+  "institucion": {
+    "id": 5,
+    "nombre": "Instituto Superior de Formación Docente N° 8",
+    "telefono": "0343-4987654",
+    "email": "info@isfd8.edu.ar",
+    "localidad": "Paraná",
+    "provincia": "Entre Ríos",
+    "pais": "Argentina"
+  }
+}
+```
+
+### Ejemplo mínimo (solo nombre)
+
+```bash
+curl -X POST https://api.example.com/api/instituciones \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{ "nombre": "Club Deportivo Municipal" }'
+```
+
+```json
+{
+  "mensaje": "Institución creada exitosamente",
+  "institucion": {
+    "id": 6,
+    "nombre": "Club Deportivo Municipal",
+    "telefono": null,
+    "email": null,
+    "localidad": null,
+    "provincia": null,
+    "pais": "Argentina"
+  }
+}
+```
+
+### Respuestas de error
+
+| Código | Descripción |
+|---|---|
+| `400 Bad Request` | El campo `nombre` está ausente o vacío, o ya existe una institución con el mismo nombre en la misma ubicación. El cuerpo incluye `{ "error": "<descripción>" }`. |
+| `401 Unauthorized` | Token ausente o inválido. |
+
+<Tip>
+  La creación de una institución genera una entrada en el [log de auditoría](/api/auditoria) con el formato `Registró nueva institución "<nombre>"`, asociada al usuario que realizó la solicitud.
+</Tip>

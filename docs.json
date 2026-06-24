@@ -1,72 +1,84 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "Túnel Subfluvial — Gestor de Visitas",
+  "theme": "almond",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#101e73",
+    "light": "#040405",
+    "dark": "#101e73"
   },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
+  "favicon": "https://media.brand.dev/9e9a2786-63c8-4ce4-a4a9-5c334d89381e.svg",
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
     "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "type": "github",
+      "href": "https://github.com/JuanM84/gestor-visitas"
     }
-  },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/JuanM84/gestor-visitas"
     }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guía de Usuario",
+        "groups": [
+          {
+            "group": "Primeros Pasos",
+            "pages": [
+              "introduccion",
+              "instalacion",
+              "arquitectura"
+            ]
+          },
+          {
+            "group": "Funcionalidades",
+            "pages": [
+              "guias/autenticacion",
+              "guias/dashboard",
+              "guias/registro-visitas",
+              "guias/gestion-gestores",
+              "guias/calendario",
+              "guias/reportes-exportacion"
+            ]
+          },
+          {
+            "group": "Administración",
+            "pages": [
+              "guias/gestion-usuarios",
+              "guias/configuracion-sistema",
+              "guias/dias-inhabiles",
+              "guias/auditoria"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Referencia API",
+        "groups": [
+          {
+            "group": "Visión General",
+            "pages": [
+              "api/descripcion-general",
+              "api/autenticacion"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/visitas",
+              "api/gestores",
+              "api/usuarios",
+              "api/estadisticas",
+              "api/configuracion",
+              "api/dias-inhabiles",
+              "api/instituciones",
+              "api/auditoria"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

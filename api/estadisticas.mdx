@@ -1,0 +1,262 @@
+---
+title: "Estadísticas y Exportación — Túnel Subfluvial API"
+sidebarTitle: "Estadísticas"
+description: "Retrieve KPI dashboards and date-range analytics, then export results as PDF: monthly reports, daily schedules, range summaries, visit vouchers, and custom reports."
+---
+
+The Estadísticas endpoints provide aggregated analytics used by management dashboards, as well as a full suite of PDF export capabilities. All endpoints in this group require a valid `Authorization: Bearer <token>` header. The `/exportar/informe` endpoint additionally requires the `Admin` role. PDF responses return binary `application/pdf` data with a `Content-Disposition: attachment` header so browsers trigger a file download automatically.
+
+---
+
+## GET /api/estadisticas/admin
+
+Returns the KPI and chart data that power the Admin management dashboard. Defaults to the current year and month when query parameters are omitted. The response includes visit counts, occupancy rates, breakdowns by visit type, and time-series data suitable for charting.
+
+<ParamField query="anio" type="number">
+  Four-digit year (e.g. `2025`). Defaults to the current year.
+</ParamField>
+<ParamField query="mes" type="number">
+  Month number from `1` to `12`. Defaults to the current month.
+</ParamField>
+
+<ResponseField name="totalVisitas" type="number">
+  Total visits in the selected month.
+</ResponseField>
+<ResponseField name="totalVisitantes" type="number">
+  Total visitors across all visits in the selected month.
+</ResponseField>
+<ResponseField name="visitasPorEstado" type="object">
+  Counts broken down by state: `Agendada`, `Cancelada`, `Realizada`.
+</ResponseField>
+<ResponseField name="visitasPorTipo" type="object">
+  Counts broken down by visit type: `Salón de visitas`, `Salón + Sala de Comando`.
+</ResponseField>
+<ResponseField name="serieTemporal" type="array">
+  Array of daily data points for chart rendering, each with a date and visit count.
+</ResponseField>
+
+```bash
+curl -X GET "https://api.example.com/api/estadisticas/admin?anio=2025&mes=8" \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Success — KPI and chart data returned |
+| `401`  | Missing or invalid token |
+| `500`  | Internal server error |
+
+---
+
+## GET /api/estadisticas/rango
+
+Returns aggregated statistics for an arbitrary date range. Both `desde` and `hasta` are required and must follow `YYYY-MM-DD` format. The `desde` date must not be later than `hasta`. Use this endpoint to generate ad-hoc period summaries outside the fixed monthly view.
+
+<ParamField query="desde" type="string" required>
+  Start of the range in `YYYY-MM-DD` format.
+</ParamField>
+<ParamField query="hasta" type="string" required>
+  End of the range in `YYYY-MM-DD` format. Must be on or after `desde`.
+</ParamField>
+
+<ResponseField name="totalVisitas" type="number">
+  Total visits within the specified range.
+</ResponseField>
+<ResponseField name="totalVisitantes" type="number">
+  Total visitors across all visits in the range.
+</ResponseField>
+<ResponseField name="visitasPorEstado" type="object">
+  Counts broken down by state: `Agendada`, `Cancelada`, `Realizada`.
+</ResponseField>
+<ResponseField name="visitasPorTipo" type="object">
+  Counts broken down by visit type.
+</ResponseField>
+<ResponseField name="visitasPorInstitucion" type="array">
+  Ranking of institutions by visit count within the range.
+</ResponseField>
+
+```bash
+curl -X GET "https://api.example.com/api/estadisticas/rango?desde=2025-01-01&hasta=2025-06-30" \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Success — range statistics returned |
+| `400`  | Missing parameters, invalid date format, or `desde` is after `hasta` |
+| `401`  | Missing or invalid token |
+| `500`  | Internal server error |
+
+---
+
+## GET /api/estadisticas/exportar
+
+Generates and downloads a monthly visits report as a PDF file. Defaults to the current year and month when parameters are omitted. The downloaded file is named `Reporte_Visitas_<mes>_<anio>.pdf`.
+
+<ParamField query="anio" type="number">
+  Four-digit year. Defaults to the current year.
+</ParamField>
+<ParamField query="mes" type="number">
+  Month number from `1` to `12`. Defaults to the current month.
+</ParamField>
+
+**Response:** Binary `application/pdf` stream.
+
+| Response Header | Value |
+|-----------------|-------|
+| `Content-Type` | `application/pdf` |
+| `Content-Disposition` | `attachment; filename=Reporte_Visitas_<mes>_<anio>.pdf` |
+
+```bash
+curl -X GET "https://api.example.com/api/estadisticas/exportar?anio=2025&mes=8" \
+  -H "Authorization: Bearer <token>" \
+  --output Reporte_Visitas_8_2025.pdf
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | PDF generated and returned as binary stream |
+| `401`  | Missing or invalid token |
+| `500`  | PDF generation failed |
+
+---
+
+## GET /api/estadisticas/exportar/diario
+
+Generates and downloads the daily operations schedule as a PDF. The `fecha` parameter is required and must be in `YYYY-MM-DD` format. The downloaded file is named `Cronograma_<fecha>.pdf`. This is the document used by guides on the day of visits.
+
+<ParamField query="fecha" type="string" required>
+  The date for which to generate the schedule, in `YYYY-MM-DD` format.
+</ParamField>
+
+**Response:** Binary `application/pdf` stream.
+
+| Response Header | Value |
+|-----------------|-------|
+| `Content-Type` | `application/pdf` |
+| `Content-Disposition` | `attachment; filename=Cronograma_<fecha>.pdf` |
+
+```bash
+curl -X GET "https://api.example.com/api/estadisticas/exportar/diario?fecha=2025-08-15" \
+  -H "Authorization: Bearer <token>" \
+  --output Cronograma_2025-08-15.pdf
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | PDF generated and returned as binary stream |
+| `400`  | Missing `fecha` or invalid date format |
+| `401`  | Missing or invalid token |
+| `500`  | PDF generation failed |
+
+---
+
+## GET /api/estadisticas/exportar/rango
+
+Generates and downloads a PDF report covering all visits in a date range. An optional `estados` filter lets you narrow the report to specific visit states. The downloaded file is named `Reporte_Visitas_<desde>_a_<hasta>.pdf`.
+
+<ParamField query="desde" type="string" required>
+  Start of the range in `YYYY-MM-DD` format.
+</ParamField>
+<ParamField query="hasta" type="string" required>
+  End of the range in `YYYY-MM-DD` format.
+</ParamField>
+<ParamField query="estados" type="string">
+  Optional comma-separated list of states to include. Valid values: `Agendada`, `Cancelada`, `Realizada`. When omitted, all states are included. Example: `estados=Agendada,Realizada`.
+</ParamField>
+
+**Response:** Binary `application/pdf` stream.
+
+| Response Header | Value |
+|-----------------|-------|
+| `Content-Type` | `application/pdf` |
+| `Content-Disposition` | `attachment; filename=Reporte_Visitas_<desde>_a_<hasta>.pdf` |
+
+```bash
+curl -X GET "https://api.example.com/api/estadisticas/exportar/rango?desde=2025-07-01&hasta=2025-07-31&estados=Agendada,Realizada" \
+  -H "Authorization: Bearer <token>" \
+  --output Reporte_Visitas_2025-07-01_a_2025-07-31.pdf
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | PDF generated and returned as binary stream |
+| `400`  | Missing or malformed `desde` / `hasta` parameters |
+| `401`  | Missing or invalid token |
+| `500`  | PDF generation failed |
+
+---
+
+## GET /api/estadisticas/exportar/visita/:id
+
+Generates and downloads the official visit voucher (comprobante) for a single visit. The PDF contains the full visit details, group information, and confirmation data. The downloaded file is named `Comprobante_Visita_<id>.pdf`.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the visit for which to generate the voucher.
+</ParamField>
+
+**Response:** Binary `application/pdf` stream.
+
+| Response Header | Value |
+|-----------------|-------|
+| `Content-Type` | `application/pdf` |
+| `Content-Disposition` | `attachment; filename=Comprobante_Visita_<id>.pdf` |
+
+```bash
+curl -X GET "https://api.example.com/api/estadisticas/exportar/visita/42" \
+  -H "Authorization: Bearer <token>" \
+  --output Comprobante_Visita_42.pdf
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | PDF voucher generated and returned as binary stream |
+| `400`  | Missing visit ID |
+| `401`  | Missing or invalid token |
+| `500`  | PDF generation failed (e.g. visit not found in service layer) |
+
+---
+
+## GET /api/estadisticas/exportar/informe
+
+Generates a custom statistics report PDF for a specified date range. The caller selects which statistical sections to include and can supply a custom title. At least one section must be specified.
+
+<Warning>
+  This endpoint requires the `Admin` role. Requests from authenticated non-Admin users will receive a `403 Forbidden` response.
+</Warning>
+
+The downloaded file is named `Informe_Estadisticas_<desde>_a_<hasta>.pdf`.
+
+<ParamField query="desde" type="string" required>
+  Start of the reporting period in `YYYY-MM-DD` format.
+</ParamField>
+<ParamField query="hasta" type="string" required>
+  End of the reporting period in `YYYY-MM-DD` format.
+</ParamField>
+<ParamField query="titulo" type="string">
+  Optional custom title for the report. Defaults to an empty string if omitted.
+</ParamField>
+<ParamField query="secciones" type="string" required>
+  Comma-separated list of sections to include in the report. At least one value is required. Example: `secciones=resumen,por_tipo,por_institucion`.
+</ParamField>
+
+**Response:** Binary `application/pdf` stream.
+
+| Response Header | Value |
+|-----------------|-------|
+| `Content-Type` | `application/pdf` |
+| `Content-Disposition` | `attachment; filename=Informe_Estadisticas_<desde>_a_<hasta>.pdf` |
+
+```bash
+curl -X GET "https://api.example.com/api/estadisticas/exportar/informe?desde=2025-01-01&hasta=2025-06-30&titulo=Informe%20Semestral&secciones=resumen,por_tipo,por_institucion" \
+  -H "Authorization: Bearer <token>" \
+  --output Informe_Estadisticas_2025-01-01_a_2025-06-30.pdf
+```
+
+| Status | Meaning |
+|--------|---------|
+| `200`  | Report PDF generated and returned as binary stream |
+| `400`  | Missing or malformed date parameters, or `secciones` is empty |
+| `401`  | Missing or invalid token |
+| `403`  | Authenticated user does not have the `Admin` role |
+| `500`  | PDF generation failed |

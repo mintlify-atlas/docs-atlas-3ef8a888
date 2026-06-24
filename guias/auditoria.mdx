@@ -1,0 +1,156 @@
+---
+title: "Auditoría: Registro Inmutable de Actividad del Sistema"
+sidebarTitle: "Auditoría"
+description: "Consulte el historial completo de acciones del sistema. Cada operación queda registrada permanentemente para trazabilidad, cumplimiento y análisis forense."
+---
+
+El módulo de auditoría expone el historial cronológico de todas las acciones que modifican datos en el sistema. Cada vez que un usuario crea, edita o cancela una visita, gestiona cuentas, cambia una configuración o añade un día inhábil, el backend inserta un registro en la tabla `LOGAUDITORIA`. Estos registros son **permanentes e inmutables**: el sistema nunca actualiza ni elimina entradas de auditoría. Esta característica es fundamental para garantizar la trazabilidad de las operaciones del túnel subfluvial y facilitar la investigación de incidentes.
+
+## Control de acceso
+
+El endpoint de auditoría está protegido con doble middleware: además de requerir un token JWT válido, exige el rol **Admin**. Un Guía que intente acceder recibirá `403 Forbidden`.
+
+```http
+GET /api/auditoria
+Authorization: Bearer <token_admin>
+```
+
+Opcionalmente se puede pasar el parámetro `limite` para controlar cuántos registros devuelve la API. Por defecto son los **últimos 100**; la interfaz solicita los **últimos 500** para poblar la tabla con filtros del lado del cliente.
+
+```http
+GET /api/auditoria?limite=200
+Authorization: Bearer <token_admin>
+```
+
+## Estructura de la tabla LOGAUDITORIA
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `id` | Integer (PK) | Identificador autoincremental del log |
+| `id_usuario` | Integer (FK → USUARIO) | ID del usuario que realizó la acción |
+| `accion` | Text | Descripción en texto libre de la operación realizada |
+| `fecha_hora` | Timestamp | Fecha y hora exacta del evento (con zona horaria del servidor) |
+
+La interfaz enriquece esta información uniéndola con la tabla `USUARIO` para mostrar también el **email** y el **rol** del usuario en el momento del log, presentando columnas: Fecha y Hora, Email del Usuario, Rol y Acción Realizada.
+
+<Note>
+  La tabla `LOGAUDITORIA` es de **solo escritura**. El backend únicamente ejecuta sentencias `INSERT` sobre ella: no existen endpoints ni procedimientos internos que realicen `UPDATE` o `DELETE` sobre registros de auditoría. Esto garantiza que el historial nunca pueda ser alterado ni purgado desde la aplicación, ni siquiera por un Admin.
+</Note>
+
+## Qué acciones quedan registradas
+
+El sistema genera entradas de auditoría para cualquier operación que modifique el estado de la base de datos:
+
+<CardGroup cols={2}>
+  <Card
+    title="Gestión de Visitas"
+    icon="calendar-check"
+    href="#ejemplos-de-entradas-de-auditoria"
+  >
+    Creación, edición de datos, cambio de estado (confirmada, cancelada) y eliminación de visitas.
+  </Card>
+  <Card
+    title="Gestión de Usuarios"
+    icon="users"
+    href="#ejemplos-de-entradas-de-auditoria"
+  >
+    Alta de cuentas, modificación de datos, cambios de rol, desactivación y reactivación.
+  </Card>
+  <Card
+    title="Cambios de Configuración"
+    icon="sliders"
+    href="#ejemplos-de-entradas-de-auditoria"
+  >
+    Actualizaciones de `capacidad_maxima`, `capacidad_por_turno` y `session_timeout_minutes`.
+  </Card>
+  <Card
+    title="Días Inhábiles"
+    icon="calendar-xmark"
+    href="#ejemplos-de-entradas-de-auditoria"
+  >
+    Registro de nuevas fechas bloqueadas y eliminación de bloqueos del calendario.
+  </Card>
+</CardGroup>
+
+## Ejemplos de entradas de auditoría
+
+La siguiente tabla ilustra el aspecto de registros reales tal como los devuelve el endpoint `GET /api/auditoria`:
+
+| `id` | `fecha_hora` | `usuario_email` | `usuario_rol` | `accion` |
+|------|-------------|-----------------|---------------|---------|
+| `#1` | 2025-07-01 08:15:22 | admin@tunel.gob.ar | Admin | Usuario "Carlos Ruiz" creado con rol Guía |
+| `#2` | 2025-07-01 09:03:47 | admin@tunel.gob.ar | Admin | Configuración actualizada: capacidad_maxima = 250 |
+| `#3` | 2025-07-01 10:22:08 | c.ruiz@tunel.gob.ar | Guía | Visita registrada: Grupo "Escuela Belgrano", 32 personas, 09:00 hs |
+| `#4` | 2025-07-02 11:45:00 | admin@tunel.gob.ar | Admin | Día inhábil agregado: 2025-07-09 — Día de la Independencia |
+| `#5` | 2025-07-02 14:30:15 | c.ruiz@tunel.gob.ar | Guía | Visita #8 cancelada |
+| `#6` | 2025-07-03 09:10:55 | admin@tunel.gob.ar | Admin | Usuario "Carlos Ruiz" desactivado |
+| `#7` | 2025-07-03 09:12:30 | admin@tunel.gob.ar | Admin | Usuario "Carlos Ruiz" reactivado |
+| `#8` | 2025-07-04 16:00:00 | admin@tunel.gob.ar | Admin | Configuración actualizada: session_timeout_minutes = 60 |
+
+## Interfaz de auditoría
+
+La página **Logs de Auditoría** presenta los registros en una tabla ordenada cronológicamente (más reciente primero) con tres filtros independientes que se aplican en el cliente:
+
+<Tabs>
+  <Tab title="Filtro por Fecha">
+    Seleccione un día específico en el selector de fecha. Solo se mostrarán los registros cuya `fecha_hora` corresponda a esa jornada (en hora local). Para limpiar el filtro haga clic en la **×** junto al campo o en el botón **Limpiar filtros**.
+  </Tab>
+  <Tab title="Filtro por Email">
+    Escriba parte del correo electrónico del usuario. El filtro realiza una búsqueda por subcadena (no distingue mayúsculas). Por ejemplo, escribir `ruiz` mostrará entradas de `c.ruiz@tunel.gob.ar`.
+  </Tab>
+  <Tab title="Filtro por Acción">
+    Escriba cualquier palabra clave presente en el campo `accion`. Por ejemplo, buscar `cancelada` mostrará todas las visitas canceladas; buscar `capacidad` filtrará solo los cambios de configuración relacionados con el aforo.
+  </Tab>
+</Tabs>
+
+La barra de conteo superior derecha indica cuántos registros coinciden con los filtros activos sobre el total cargado: *"Mostrando 12 de 347 registros"*.
+
+## Uso de los logs para cumplimiento e investigación
+
+<Accordion title="Trazabilidad operativa diaria">
+  Al inicio de cada turno, un Admin puede filtrar los logs del día para verificar qué visitas se registraron, quién las ingresó y si hubo cancelaciones. Esto permite detectar errores operativos rápidamente sin necesidad de consultar directamente la base de datos.
+</Accordion>
+
+<Accordion title="Investigación de incidentes">
+  Si se detecta un cambio inesperado en la configuración (por ejemplo, el aforo máximo aparece reducido sin explicación), el Admin puede filtrar los logs por la palabra `configuracion` o `capacidad` para identificar exactamente qué usuario realizó la modificación y en qué momento. La columna de email y rol facilita la rendición de cuentas.
+</Accordion>
+
+<Accordion title="Auditoría de accesos a cuentas">
+  Para verificar si una cuenta fue desactivada o reactivada sin autorización, filtre el log por el nombre o email del usuario afectado. Las entradas relacionadas con gestión de usuarios incluyen el nombre del afectado en el texto de la acción, facilitando la búsqueda.
+</Accordion>
+
+<Accordion title="Cumplimiento normativo y reportes">
+  Dado que los logs son inmutables y contienen timestamps precisos, pueden exportarse (consultando el endpoint con un `limite` alto) para adjuntarse a informes de auditoría externa, reportes de gestión o requerimientos de organismos de control. El historial completo desde el primer día de operación del sistema siempre estará disponible.
+</Accordion>
+
+## Respuesta de la API
+
+```http
+GET /api/auditoria?limite=10
+Authorization: Bearer <token_admin>
+```
+
+```json
+[
+  {
+    "id": 347,
+    "fecha": "2025-07-04T16:00:00.000Z",
+    "usuario_email": "admin@tunel.gob.ar",
+    "usuario_rol": "Admin",
+    "accion": "Configuración actualizada: session_timeout_minutes = 60"
+  },
+  {
+    "id": 346,
+    "fecha": "2025-07-04T14:22:10.000Z",
+    "usuario_email": "c.ruiz@tunel.gob.ar",
+    "usuario_rol": "Guía",
+    "accion": "Visita registrada: Grupo \"Universidad Nacional\", 45 personas, 14:00 hs"
+  }
+]
+```
+
+Los registros se devuelven ordenados del más reciente al más antiguo. El campo `fecha` está en formato ISO 8601 UTC; la interfaz lo convierte a hora local argentina (`es-AR`) para su visualización.
+
+<Warning>
+  No existe ningún endpoint para borrar o modificar registros de auditoría, ni siquiera para el rol Admin. Si necesita limpiar la tabla por motivos técnicos excepcionales (por ejemplo, en un ambiente de pruebas), debe hacerlo directamente en la base de datos con acceso de DBA, lo que quedará fuera del alcance del log de la aplicación.
+</Warning>
