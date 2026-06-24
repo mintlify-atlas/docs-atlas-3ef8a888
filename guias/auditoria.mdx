@@ -27,9 +27,9 @@ Authorization: Bearer <token_admin>
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | `id` | Integer (PK) | Identificador autoincremental del log |
-| `id_usuario` | Integer (FK → USUARIO) | ID del usuario que realizó la acción |
+| `usuario_id` | Integer (FK → USUARIO) | ID del usuario que realizó la acción |
 | `accion` | Text | Descripción en texto libre de la operación realizada |
-| `fecha_hora` | Timestamp | Fecha y hora exacta del evento (con zona horaria del servidor) |
+| `created_at` | Timestamp | Fecha y hora exacta del evento; aliasada como `fecha` en la respuesta de la API |
 
 La interfaz enriquece esta información uniéndola con la tabla `USUARIO` para mostrar también el **email** y el **rol** del usuario en el momento del log, presentando columnas: Fecha y Hora, Email del Usuario, Rol y Acción Realizada.
 
@@ -76,7 +76,7 @@ El sistema genera entradas de auditoría para cualquier operación que modifique
 
 La siguiente tabla ilustra el aspecto de registros reales tal como los devuelve el endpoint `GET /api/auditoria`:
 
-| `id` | `fecha_hora` | `usuario_email` | `usuario_rol` | `accion` |
+| `id` | `fecha` | `usuario_email` | `usuario_rol` | `accion` |
 |------|-------------|-----------------|---------------|---------|
 | `#1` | 2025-07-01 08:15:22 | admin@tunel.gob.ar | Admin | Usuario "Carlos Ruiz" creado con rol Guía |
 | `#2` | 2025-07-01 09:03:47 | admin@tunel.gob.ar | Admin | Configuración actualizada: capacidad_maxima = 250 |
@@ -93,7 +93,7 @@ La página **Logs de Auditoría** presenta los registros en una tabla ordenada c
 
 <Tabs>
   <Tab title="Filtro por Fecha">
-    Seleccione un día específico en el selector de fecha. Solo se mostrarán los registros cuya `fecha_hora` corresponda a esa jornada (en hora local). Para limpiar el filtro haga clic en la **×** junto al campo o en el botón **Limpiar filtros**.
+    Seleccione un día específico en el selector de fecha. Solo se mostrarán los registros cuya `fecha` corresponda a esa jornada (en hora local). Para limpiar el filtro haga clic en la **×** junto al campo o en el botón **Limpiar filtros**.
   </Tab>
   <Tab title="Filtro por Email">
     Escriba parte del correo electrónico del usuario. El filtro realiza una búsqueda por subcadena (no distingue mayúsculas). Por ejemplo, escribir `ruiz` mostrará entradas de `c.ruiz@tunel.gob.ar`.

@@ -1,7 +1,7 @@
 ---
 title: "Calendario Operativo y Consulta de Historial de Visitas"
 sidebarTitle: "Calendario"
-description: "Visualice la ocupación mensual del túnel en un calendario interactivo, explore días y sus visitas, y consulte el historial completo con filtros por rango de fechas."
+description: "Visualice la ocupación mensual en un calendario interactivo, explore días y sus visitas, y exporte listados de visitas en PDF por rango de fechas."
 ---
 
 El Calendario Operativo (`/calendario`) ofrece una visión mensual de la actividad del túnel subfluvial. Cada celda del calendario muestra el estado de ocupación del día, lo que permite identificar de un vistazo qué fechas tienen cupo disponible antes de registrar una nueva visita. Al hacer clic en cualquier día activo se abre un panel con el detalle de las visitas registradas para esa jornada.
@@ -97,7 +97,7 @@ El historial (`GET /api/visitas/historial?page=1&pageSize=50`) devuelve todas la
 
 Para filtrar visitas en un período específico sin generar PDF, se puede consultar el endpoint:
 
-```
+```http
 GET /api/visitas/rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
 ```
 

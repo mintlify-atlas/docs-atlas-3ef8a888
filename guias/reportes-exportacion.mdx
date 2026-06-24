@@ -1,7 +1,7 @@
 ---
-title: "Reportes PDF y Exportación de Datos del Sistema"
+title: "Reportes PDF y Exportación de Datos del Sistema Túnel"
 sidebarTitle: "Reportes"
-description: "Conozca los cinco tipos de exportación PDF disponibles, dónde encontrar cada botón en la interfaz y cómo el servidor genera los documentos con Puppeteer."
+description: "Conozca los cinco tipos de exportación PDF disponibles, dónde encontrar cada botón en la interfaz y cómo el servidor genera los documentos PDF."
 ---
 
 El sistema ofrece cinco tipos de exportación en formato PDF, generados en el servidor mediante **puppeteer-core** con **@sparticuz/chromium** en modo headless. Todos los PDFs se descargan directamente al navegador del usuario sin necesidad de abrir una nueva pestaña. Cada tipo de exportación tiene un endpoint dedicado, un nombre de archivo predefinido y un punto de acceso específico en la interfaz.
@@ -51,11 +51,11 @@ Accede al botón **"Exportar Mensual"** en la barra de herramientas del **Dashbo
 | Parámetro | Descripción |
 |---|---|
 | **Endpoint** | `GET /api/estadisticas/exportar?anio=YYYY&mes=MM` |
-| **Archivo descargado** | `Reporte_Visitas_MM_YYYY.pdf` |
-| **Rol requerido** | Admin |
+| **Archivo descargado** | `Reporte_MM_YYYY.pdf` (p. ej.: `Reporte_4_2025.pdf`) |
+| **Rol requerido** | Guía o Admin |
 
 <Note>
-  El reporte mensual, al igual que todas las exportaciones del Dashboard de Estadísticas, es exclusivo para el rol **Admin**. Un usuario con rol Guía no puede acceder a `/estadisticas` ni a estos endpoints.
+  El botón **\"Exportar Mensual\"** está ubicado en `/estadisticas`, ruta a la que solo pueden acceder usuarios con rol **Admin**. Sin embargo, el endpoint `GET /api/estadisticas/exportar` en sí mismo acepta cualquier token válido; la restricción es de navegación UI, no de API.
 </Note>
 
 ---
@@ -107,7 +107,7 @@ Accede desde el menú de navegación → **"Confección de Informes"** (`/inform
 | Parámetro | Descripción |
 |---|---|
 | **Endpoint** | `GET /api/estadisticas/exportar/informe?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&titulo=...&secciones=...` |
-| **Archivo descargado** | `{Titulo_personalizado}.pdf` o `Informe_DD/MM/AAAA_-_DD/MM/AAAA.pdf` |
+| **Archivo descargado** | `{Titulo_personalizado}.pdf` (si se ingresó título) o `Informe_DD/MM/AAAA_-_DD/MM/AAAA.pdf` / `Informe_DD/MM/AAAA_-_DD/MM/AAAA_-_Instituciones.pdf` (si no hay título) |
 | **Rol requerido** | Admin |
 
 #### Parámetros del informe
@@ -116,7 +116,7 @@ Accede desde el menú de navegación → **"Confección de Informes"** (`/inform
 |---|---|---|
 | `desde` | ✅ | Fecha de inicio del período en formato `YYYY-MM-DD` |
 | `hasta` | ✅ | Fecha de fin del período en formato `YYYY-MM-DD` |
-| `titulo` | ❌ | Título personalizado del informe. Si se omite, se genera automáticamente como `Informe DD/MM/AAAA - DD/MM/AAAA`. |
+| `titulo` | ❌ | Título personalizado del informe. Si se omite, se genera automáticamente como `Informe DD/MM/AAAA - DD/MM/AAAA` (o con sufijo `- Instituciones` para la pestaña Instituciones). |
 | `secciones` | ✅ | Lista de claves separadas por coma. Al menos una sección debe estar seleccionada. |
 
 #### Secciones del informe (pestaña Geográficas)

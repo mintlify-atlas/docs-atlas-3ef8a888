@@ -1,5 +1,5 @@
 ---
-title: "Dashboard Operativo y Estadísticas del Túnel"
+title: "Dashboard Operativo y Panel de Estadísticas del Túnel"
 sidebarTitle: "Dashboard"
 description: "Consulte el cronograma diario de turnos con su ocupación en tiempo real, navegue entre fechas y acceda a los KPIs y gráficos del panel de estadísticas."
 ---
@@ -129,5 +129,5 @@ Debajo del gráfico de evolución se presentan cuatro bloques adicionales:
 El botón **"Consultar Rango"** abre un modal donde se puede ingresar una fecha de inicio y una de fin para obtener estadísticas de cualquier período arbitrario. Los resultados se presentan con los mismos bloques de KPIs, gráfico y rankings. Desde el modal también se puede exportar el reporte del rango a PDF.
 
 <Note>
-  Las estadísticas por rango consultan el endpoint `GET /api/estadisticas/rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD`. Este endpoint es exclusivo para administradores. Un Guía que intente acceder a `/estadisticas` será redirigido automáticamente por el sistema de protección de rutas.
+  Las estadísticas por rango consultan el endpoint `GET /api/estadisticas/rango?desde=YYYY-MM-DD&hasta=YYYY-MM-DD`. El endpoint acepta cualquier token válido, pero la ruta `/estadisticas` donde se encuentra el botón está restringida a usuarios con rol **Admin** por el sistema de protección de rutas.
 </Note>

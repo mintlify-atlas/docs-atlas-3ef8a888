@@ -112,15 +112,14 @@ Content-Type: application/json
     "nombre": "María González",
     "email": "m.gonzalez@tunel.gob.ar",
     "rol": "Guía",
-    "activo": true,
-    "created_at": "2025-07-01T14:23:00.000Z"
+    "activo": true
   }
 }
 ```
 
 ## Listar usuarios
 
-El listado completo del personal se obtiene con:
+El listado completo del personal está restringido al rol **Admin** y se obtiene con:
 
 ```http
 GET /api/usuarios
@@ -265,7 +264,7 @@ Content-Type: application/json
 
 | Método | Ruta | Requiere | Descripción |
 |--------|------|----------|-------------|
-| `GET` | `/api/usuarios` | Admin | Lista todos los usuarios |
+| `GET` | `/api/usuarios` | Admin | Lista todos los usuarios (activos e inactivos) |
 | `POST` | `/api/usuarios` | Admin | Crea un nuevo usuario |
 | `PUT` | `/api/usuarios/:id` | Admin | Actualiza nombre, email, teléfono y rol |
 | `PATCH` | `/api/usuarios/:id/desactivar` | Admin | Soft-delete (activo → false) |

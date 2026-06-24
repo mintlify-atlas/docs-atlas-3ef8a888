@@ -1,16 +1,16 @@
 ---
-title: "Usuarios API — Tunnel Visit Management System"
+title: "API de Usuarios — Túnel Subfluvial Gestor de Visitas"
 sidebarTitle: "Usuarios"
-description: "Administer system users: list, create, update roles, change passwords, manage profiles, and safely deactivate or reactivate accounts with built-in safeguards."
+description: "Administrá cuentas del sistema: listar, crear, editar roles, cambiar contraseñas, gestionar perfiles y desactivar o reactivar usuarios con protecciones."
 ---
 
-The Usuarios endpoints manage the internal accounts that operate the Túnel Subfluvial visitor management system. Users can hold the `Admin` or `Guía` role. Most endpoints are restricted to users with the `Admin` role; the password and profile endpoints allow each user to manage their own data. Every request requires a valid `Authorization: Bearer <token>` header.
+Los endpoints de Usuarios administran las cuentas internas que operan el sistema de gestión de visitas al Túnel Subfluvial. Los usuarios pueden tener el rol `Admin` o `Guía`. La mayoría de los endpoints están restringidos al rol `Admin`; los endpoints de contraseña y perfil permiten a cada usuario gestionar sus propios datos. Todos los requests requieren un encabezado `Authorization: Bearer <token>` válido.
 
 ---
 
 ## GET /api/usuarios
 
-Returns a list of all users registered in the system. This endpoint is restricted to the `Admin` role.
+Devuelve la lista de todos los usuarios registrados en el sistema. Este endpoint está restringido al rol `Admin`.
 
 ```bash
 curl -X GET "https://api.example.com/api/usuarios" \
@@ -18,62 +18,59 @@ curl -X GET "https://api.example.com/api/usuarios" \
 ```
 
 <ResponseField name="(array)" type="array">
-  Array of user objects.
+  Array de objetos de usuario.
 </ResponseField>
 <ResponseField name="id" type="number">
-  Unique user identifier.
+  Identificador único del usuario.
 </ResponseField>
 <ResponseField name="nombre" type="string">
-  Full name of the user.
+  Nombre completo del usuario.
 </ResponseField>
 <ResponseField name="email" type="string">
-  Login email address.
-</ResponseField>
-<ResponseField name="telefono" type="string">
-  Contact phone number.
+  Dirección de email de acceso.
 </ResponseField>
 <ResponseField name="rol" type="string">
-  User role: `Admin` or `Guía`.
+  Rol del usuario: `Admin` o `Guía`.
 </ResponseField>
 <ResponseField name="activo" type="boolean">
-  Whether the account is currently active.
+  Indica si la cuenta está actualmente activa.
 </ResponseField>
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | Success — full user list returned |
-| `401`  | Missing or invalid token |
-| `403`  | Authenticated user does not have the `Admin` role |
-| `500`  | Internal server error |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Éxito — lista completa de usuarios devuelta |
+| `401`  | Token ausente o inválido |
+| `403`  | El usuario autenticado no tiene el rol `Admin` |
+| `500`  | Error interno del servidor |
 
 ---
 
 ## POST /api/usuarios
 
-Creates a new system user. Restricted to the `Admin` role. The service layer validates uniqueness of the email address and applies any password hashing before persisting.
+Crea un nuevo usuario del sistema. Restringido al rol `Admin`. El servicio valida la unicidad del email y aplica el hash de la contraseña antes de persistir.
 
 <Warning>
-  Only Admin users can create new accounts. The initial password must be set here and communicated to the new user out-of-band. Users can change it later via `PUT /api/usuarios/:id/password`.
+  Solo los usuarios Admin pueden crear nuevas cuentas. La contraseña inicial debe establecerse aquí y comunicarse al nuevo usuario por fuera del sistema. El usuario podrá cambiarla luego a través de `PUT /api/usuarios/:id/password`.
 </Warning>
 
 <ParamField body="nombre" type="string" required>
-  Full name of the new user.
+  Nombre completo del nuevo usuario.
 </ParamField>
 <ParamField body="email" type="string" required>
-  Login email address. Must be unique across all users.
+  Dirección de email de acceso. Debe ser única en el sistema.
 </ParamField>
 <ParamField body="password" type="string" required>
-  Initial plaintext password. Stored as a bcrypt hash.
+  Contraseña inicial en texto plano. Se almacena como hash bcrypt.
 </ParamField>
 <ParamField body="rol" type="string" required>
-  Role to assign: `Admin` or `Guía`.
+  Rol a asignar: `Admin` o `Guía`.
 </ParamField>
 
 <ResponseField name="mensaje" type="string">
-  Confirmation message: `"Usuario creado exitosamente"`.
+  Mensaje de confirmación: `"Usuario creado exitosamente"`.
 </ResponseField>
 <ResponseField name="usuario" type="object">
-  The newly created user object (password hash is not returned).
+  El objeto del nuevo usuario recién creado (el hash de contraseña no se devuelve).
 </ResponseField>
 
 ```bash
@@ -88,40 +85,40 @@ curl -X POST "https://api.example.com/api/usuarios" \
   }'
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `201`  | User created — returns `{ mensaje, usuario }` |
-| `400`  | Validation error (duplicate email, missing required fields, etc.) |
-| `401`  | Missing or invalid token |
-| `403`  | Authenticated user does not have the `Admin` role |
+| Estado | Significado |
+|--------|-------------|
+| `201`  | Usuario creado — devuelve `{ mensaje, usuario }` |
+| `400`  | Error de validación (email duplicado, campos requeridos faltantes, etc.) |
+| `401`  | Token ausente o inválido |
+| `403`  | El usuario autenticado no tiene el rol `Admin` |
 
 ---
 
 ## PUT /api/usuarios/:id
 
-Updates the profile data of an existing user. Only `nombre`, `email`, `telefono`, and `rol` can be changed through this endpoint. Password changes must be made via `PUT /api/usuarios/:id/password`. Restricted to the `Admin` role.
+Actualiza los datos de perfil de un usuario existente. Solo se pueden modificar `nombre`, `email`, `telefono` y `rol` a través de este endpoint. Los cambios de contraseña deben realizarse mediante `PUT /api/usuarios/:id/password`. Restringido al rol `Admin`.
 
 <ParamField path="id" type="string" required>
-  The unique identifier of the user to update.
+  El identificador único del usuario a actualizar.
 </ParamField>
 <ParamField body="nombre" type="string">
-  Updated full name.
+  Nombre completo actualizado.
 </ParamField>
 <ParamField body="email" type="string">
-  Updated email address.
+  Dirección de email actualizada.
 </ParamField>
 <ParamField body="telefono" type="string">
-  Updated contact phone number.
+  Teléfono de contacto actualizado.
 </ParamField>
 <ParamField body="rol" type="string">
-  Updated role: `Admin` or `Guía`.
+  Rol actualizado: `Admin` o `Guía`.
 </ParamField>
 
 <ResponseField name="mensaje" type="string">
-  Confirmation message: `"Usuario actualizado correctamente."`.
+  Mensaje de confirmación: `"Usuario actualizado correctamente."`.
 </ResponseField>
 <ResponseField name="usuario" type="object">
-  The full updated user object.
+  El objeto de usuario completo y actualizado.
 </ResponseField>
 
 ```bash
@@ -134,32 +131,32 @@ curl -X PUT "https://api.example.com/api/usuarios/5" \
   }'
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | User updated — returns `{ mensaje, usuario }` |
-| `400`  | Validation or service-layer error |
-| `401`  | Missing or invalid token |
-| `403`  | Authenticated user does not have the `Admin` role |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Usuario actualizado — devuelve `{ mensaje, usuario }` |
+| `400`  | Error de validación o del servicio |
+| `401`  | Token ausente o inválido |
+| `403`  | El usuario autenticado no tiene el rol `Admin` |
 
 ---
 
 ## PATCH /api/usuarios/:id/desactivar
 
-Soft-deactivates a user account by setting `activo = false`. The user is preserved in the database for audit purposes but can no longer log in. Restricted to the `Admin` role.
+Desactiva una cuenta de usuario mediante soft-delete, estableciendo `activo = false`. El usuario se conserva en la base de datos con fines de auditoría pero no puede volver a iniciar sesión. Restringido al rol `Admin`.
 
 <Warning>
-  Two built-in protections apply. First, an Admin **cannot deactivate their own account** while logged in — attempting to do so returns `400`. Second, the service layer prevents deactivating the **last remaining Admin** user to avoid locking everyone out of the system.
+  Se aplican dos protecciones integradas. Primero, un Admin **no puede desactivar su propia cuenta** mientras tiene la sesión activa — el intento devuelve `400` con el mensaje `"No podés desactivar tu propia cuenta mientras tenés la sesión activa."`. Segundo, el servicio impide desactivar al **último Admin activo** para evitar el bloqueo total del sistema.
 </Warning>
 
 <ParamField path="id" type="string" required>
-  The unique identifier of the user to deactivate.
+  El identificador único del usuario a desactivar.
 </ParamField>
 
 <ResponseField name="mensaje" type="string">
-  Confirmation message including the user's name, e.g. `"Usuario \"Martina López\" desactivado correctamente"`.
+  Mensaje de confirmación incluyendo el nombre del usuario, ej. `"Usuario \"Martina López\" desactivado correctamente"`.
 </ResponseField>
 <ResponseField name="usuario" type="object">
-  The updated user object with `activo` set to `false`.
+  El objeto de usuario actualizado con `activo` igual a `false`.
 </ResponseField>
 
 ```bash
@@ -167,29 +164,29 @@ curl -X PATCH "https://api.example.com/api/usuarios/5/desactivar" \
   -H "Authorization: Bearer <token>"
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | User deactivated — returns `{ mensaje, usuario }` |
-| `400`  | Self-deactivation attempt, or last-Admin protection triggered |
-| `401`  | Missing or invalid token |
-| `403`  | Authenticated user does not have the `Admin` role |
-| `404`  | No user found with the given ID |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Usuario desactivado — devuelve `{ mensaje, usuario }` |
+| `400`  | Intento de auto-desactivación, protección del último Admin, o usuario ya inactivo |
+| `401`  | Token ausente o inválido |
+| `403`  | El usuario autenticado no tiene el rol `Admin` |
+| `404`  | No se encontró ningún usuario con ese ID |
 
 ---
 
 ## PATCH /api/usuarios/:id/reactivar
 
-Re-enables a previously deactivated user account by setting `activo = true`. Restricted to the `Admin` role. The reactivated user can log in again immediately.
+Reactiva una cuenta de usuario previamente desactivada estableciendo `activo = true`. Restringido al rol `Admin`. El usuario reactivado puede iniciar sesión de inmediato.
 
 <ParamField path="id" type="string" required>
-  The unique identifier of the user to reactivate.
+  El identificador único del usuario a reactivar.
 </ParamField>
 
 <ResponseField name="mensaje" type="string">
-  Confirmation message including the user's name, e.g. `"Usuario \"Martina López\" reactivado correctamente"`.
+  Mensaje de confirmación incluyendo el nombre del usuario, ej. `"Usuario \"Martina López\" reactivado correctamente"`.
 </ResponseField>
 <ResponseField name="usuario" type="object">
-  The updated user object with `activo` set to `true`.
+  El objeto de usuario actualizado con `activo` igual a `true`.
 </ResponseField>
 
 ```bash
@@ -197,32 +194,32 @@ curl -X PATCH "https://api.example.com/api/usuarios/5/reactivar" \
   -H "Authorization: Bearer <token>"
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | User reactivated — returns `{ mensaje, usuario }` |
-| `400`  | Service-layer error |
-| `401`  | Missing or invalid token |
-| `403`  | Authenticated user does not have the `Admin` role |
-| `404`  | No user found with the given ID |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Usuario reactivado — devuelve `{ mensaje, usuario }` |
+| `400`  | Usuario ya se encuentra activo (`"El usuario ya se encuentra activo"`) |
+| `401`  | Token ausente o inválido |
+| `403`  | El usuario autenticado no tiene el rol `Admin` |
+| `404`  | No se encontró ningún usuario con ese ID |
 
 ---
 
 ## PUT /api/usuarios/:id/password
 
-Changes the password for a user account. The requesting user must either be the account owner or hold the `Admin` role. Both the current password and the desired new password are required. The current password is verified against the stored hash before the change is applied.
+Cambia la contraseña de una cuenta de usuario. El usuario solicitante debe ser el propietario de la cuenta o tener el rol `Admin`. Se requieren tanto la contraseña actual como la nueva. La contraseña actual se verifica contra el hash almacenado antes de aplicar el cambio.
 
 <ParamField path="id" type="string" required>
-  The unique identifier of the user whose password is being changed.
+  El identificador único del usuario cuya contraseña se cambia.
 </ParamField>
 <ParamField body="passwordActual" type="string" required>
-  The user's current password in plaintext for verification.
+  La contraseña actual del usuario en texto plano, para verificación.
 </ParamField>
 <ParamField body="nuevaPassword" type="string" required>
-  The new password in plaintext. Will be stored as a bcrypt hash.
+  La nueva contraseña en texto plano. Se almacenará como hash bcrypt.
 </ParamField>
 
 <ResponseField name="mensaje" type="string">
-  Confirmation message: `"Contraseña actualizada correctamente."`.
+  Mensaje de confirmación: `"Contraseña actualizada correctamente."`.
 </ResponseField>
 
 ```bash
@@ -235,40 +232,40 @@ curl -X PUT "https://api.example.com/api/usuarios/5/password" \
   }'
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | Password changed — returns `{ mensaje }` |
-| `400`  | Missing fields or current password is incorrect |
-| `401`  | Missing or invalid token |
-| `403`  | Requester is neither the account owner nor an Admin |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Contraseña cambiada — devuelve `{ mensaje }` |
+| `400`  | Campos faltantes o contraseña actual incorrecta |
+| `401`  | Token ausente o inválido |
+| `403`  | El solicitante no es el propietario de la cuenta ni tiene el rol `Admin` |
 
 ---
 
 ## GET /api/usuarios/:id/perfil
 
-Returns the profile of the specified user. A user can only view their own profile unless they hold the `Admin` role. Returns `404` if the user is not found.
+Devuelve el perfil del usuario especificado. Un usuario solo puede ver su propio perfil a menos que tenga el rol `Admin`. Devuelve `404` si el usuario no se encuentra.
 
 <ParamField path="id" type="string" required>
-  The unique identifier of the user whose profile to retrieve.
+  El identificador único del usuario cuyo perfil se desea consultar.
 </ParamField>
 
 <ResponseField name="id" type="number">
-  Unique user identifier.
+  Identificador único del usuario.
 </ResponseField>
 <ResponseField name="nombre" type="string">
-  Full name.
+  Nombre completo.
 </ResponseField>
 <ResponseField name="email" type="string">
-  Login email address.
+  Dirección de email de acceso.
 </ResponseField>
 <ResponseField name="telefono" type="string">
-  Contact phone number.
+  Teléfono de contacto.
 </ResponseField>
 <ResponseField name="rol" type="string">
-  Current role: `Admin` or `Guía`.
+  Rol actual: `Admin` o `Guía`.
 </ResponseField>
 <ResponseField name="activo" type="boolean">
-  Whether the account is currently active.
+  Indica si la cuenta está actualmente activa.
 </ResponseField>
 
 ```bash
@@ -276,34 +273,34 @@ curl -X GET "https://api.example.com/api/usuarios/5/perfil" \
   -H "Authorization: Bearer <token>"
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | Success — user profile returned |
-| `401`  | Missing or invalid token |
-| `403`  | Requester is not the account owner and does not hold the `Admin` role |
-| `404`  | No user found with the given ID |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Éxito — perfil del usuario devuelto |
+| `401`  | Token ausente o inválido |
+| `403`  | El solicitante no es el propietario de la cuenta ni tiene el rol `Admin` |
+| `404`  | No se encontró ningún usuario con ese ID |
 
 ---
 
 ## PUT /api/usuarios/:id/perfil
 
-Allows a user to update their own contact details. Only `email` and `telefono` can be changed through this endpoint. **Only the account owner** may call this endpoint — not even an Admin can update another user's profile here. To change `nombre` or `rol`, use `PUT /api/usuarios/:id` instead.
+Permite a un usuario actualizar sus propios datos de contacto. Solo se pueden modificar `email` y `telefono` a través de este endpoint. **Solo el propietario de la cuenta** puede llamar a este endpoint — ni siquiera un Admin puede actualizar el perfil de otro usuario aquí. Para cambiar `nombre` o `rol`, usá `PUT /api/usuarios/:id`.
 
 <ParamField path="id" type="string" required>
-  The unique identifier of the user whose profile to update. Must match the authenticated user's ID.
+  El identificador único del usuario cuyo perfil se actualiza. Debe coincidir con el ID del usuario autenticado.
 </ParamField>
 <ParamField body="email" type="string">
-  Updated email address.
+  Dirección de email actualizada.
 </ParamField>
 <ParamField body="telefono" type="string">
-  Updated contact phone number.
+  Teléfono de contacto actualizado.
 </ParamField>
 
 <ResponseField name="mensaje" type="string">
-  Confirmation message: `"Perfil actualizado correctamente."`.
+  Mensaje de confirmación: `"Perfil actualizado correctamente."`.
 </ResponseField>
 <ResponseField name="usuario" type="object">
-  The updated user object reflecting the new contact details.
+  El objeto de usuario actualizado con los nuevos datos de contacto.
 </ResponseField>
 
 ```bash
@@ -316,9 +313,9 @@ curl -X PUT "https://api.example.com/api/usuarios/5/perfil" \
   }'
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | Profile updated — returns `{ mensaje, usuario }` |
-| `400`  | Validation or service-layer error |
-| `401`  | Missing or invalid token |
-| `403`  | Authenticated user is not the account owner |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Perfil actualizado — devuelve `{ mensaje, usuario }` |
+| `400`  | Error de validación o del servicio |
+| `401`  | Token ausente o inválido |
+| `403`  | El usuario autenticado no es el propietario de la cuenta |

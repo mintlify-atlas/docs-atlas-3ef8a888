@@ -1,5 +1,5 @@
 ---
-title: "Días Inhábiles — Bloqueo de Fechas sin Visitas"
+title: "Días Inhábiles — Fechas Sin Visitas del Túnel"
 sidebarTitle: "Días Inhábiles"
 description: "Gestiona las fechas en que el túnel no opera: lista días bloqueados, registra nuevos feriados o mantenimientos, y elimina bloqueos vigentes."
 ---
@@ -128,7 +128,8 @@ curl -X POST https://api.example.com/api/dias-inhabiles \
 
 | Código | Descripción |
 |---|---|
-| `400 Bad Request` | Fecha o descripción ausentes, o la fecha es anterior a hoy. Responde con `{ "error": "No se puede bloquear una fecha pasada" }`. |
+| `400 Bad Request` | `fecha` o `descripcion` ausentes en el cuerpo. Responde con `{ "error": "La fecha y descripción son obligatorias" }`. |
+| `400 Bad Request` | La fecha enviada es anterior a la fecha actual. Responde con `{ "error": "No se puede bloquear una fecha pasada" }`. |
 | `401 Unauthorized` | Token ausente o inválido. |
 | `403 Forbidden` | El usuario autenticado no tiene rol Admin. |
 | `409 Conflict` | La fecha ya está registrada como día inhábil. Responde con `{ "error": "Esta fecha ya está registrada como día inhábil" }`. |

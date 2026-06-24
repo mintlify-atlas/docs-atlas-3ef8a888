@@ -73,15 +73,15 @@ Podés verificar tus versiones ejecutando `node -v`, `npm -v` y `psql --version`
     # Puerto en el que escucha el servidor Express
     PORT=3000
 
-    # Cadena de conexión completa a PostgreSQL (opción A)
+    # Cadena de conexión completa a PostgreSQL (opción A — tiene prioridad)
     DATABASE_URL=postgresql://usuario:contraseña@localhost:5432/tunel_subfluvial
 
     # --- O bien, variables individuales de conexión (opción B) ---
-    PGHOST=localhost
-    PGPORT=5432
-    PGDATABASE=tunel_subfluvial
-    PGUSER=tu_usuario
-    PGPASSWORD=tu_contraseña
+    DB_HOST=localhost
+    DB_PORT=5432
+    DB_NAME=tunel_subfluvial
+    DB_USER=tu_usuario
+    DB_PASSWORD=tu_contraseña
 
     # Clave secreta para firmar y verificar los tokens JWT
     # Usá una cadena larga y aleatoria (mínimo 32 caracteres)
@@ -211,17 +211,17 @@ Si recibís esa respuesta, el servidor Express está operativo y conectado. A co
 | Variable | Requerida | Valor por defecto | Descripción |
 |---|---|---|---|
 | `PORT` | No | `3000` | Puerto TCP en el que escucha Express |
-| `DATABASE_URL` | Sí* | — | URI completa de conexión a PostgreSQL |
-| `PGHOST` | Sí* | — | Host del servidor PostgreSQL |
-| `PGPORT` | No | `5432` | Puerto PostgreSQL |
-| `PGDATABASE` | Sí* | — | Nombre de la base de datos |
-| `PGUSER` | Sí* | — | Usuario de PostgreSQL |
-| `PGPASSWORD` | Sí* | — | Contraseña del usuario PostgreSQL |
+| `DATABASE_URL` | Sí* | — | URI completa de conexión a PostgreSQL (tiene prioridad sobre las variables `DB_*`) |
+| `DB_HOST` | Sí* | `localhost` | Host del servidor PostgreSQL |
+| `DB_PORT` | No | `5432` | Puerto PostgreSQL |
+| `DB_NAME` | Sí* | `tunel_subfluvial` | Nombre de la base de datos |
+| `DB_USER` | Sí* | `postgres` | Usuario de PostgreSQL |
+| `DB_PASSWORD` | Sí* | — | Contraseña del usuario PostgreSQL |
 | `JWT_SECRET` | **Sí** | — | Secreto para firmar tokens JWT (mínimo 32 chars) |
 | `FRONTEND_URL` | No | `http://localhost:5173` | Origen permitido en la política CORS |
 
 <Note>
-Para la conexión a PostgreSQL usá **`DATABASE_URL`** (opción A) **o** las variables `PG*` individuales (opción B). No es necesario definir ambas; el driver `pg` prioriza las variables individuales si `DATABASE_URL` no está definida.
+Para la conexión a PostgreSQL usá **`DATABASE_URL`** (opción A) **o** las variables `DB_*` individuales (opción B). Cuando `DATABASE_URL` está definida, el driver `pg` la usa de forma exclusiva y habilita SSL automáticamente (útil en entornos como Render). Si `DATABASE_URL` no está definida, se utilizan las variables `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`.
 </Note>
 
 ### Frontend (`frontend/.env`)

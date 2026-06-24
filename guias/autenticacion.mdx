@@ -1,5 +1,5 @@
 ---
-title: "Autenticación y Gestión de Sesión en el Túnel"
+title: "Autenticación y Gestión de Sesión en el Sistema"
 sidebarTitle: "Autenticación"
 description: "Aprenda cómo iniciar sesión, entender el sistema de roles, y cómo el cierre automático por inactividad protege los datos del sistema."
 ---
@@ -25,7 +25,7 @@ El sistema de autenticación del Gestor de Visitas usa **JSON Web Tokens (JWT)**
     Con el timeout resuelto, se arrancan los temporizadores de inactividad. A partir de este punto, cualquier actividad del usuario (movimiento del ratón, clic, tecla, scroll o toque) reinicia el contador.
   </Step>
   <Step title="Redirigir al dashboard">
-    Una vez completado el login, la aplicación redirige al usuario a `/dashboard` (rol Guía) o a la vista de estadísticas (rol Admin).
+    Una vez completado el login, la aplicación redirige al usuario a `/dashboard` independientemente del rol. El Dashboard Operativo está disponible para ambos roles; los Administradores pueden navegar luego a `/estadisticas` desde el menú.
   </Step>
 </Steps>
 

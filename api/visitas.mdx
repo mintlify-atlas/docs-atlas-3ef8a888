@@ -1,31 +1,31 @@
 ---
-title: "Visitas API — Gestor de Visitas Túnel Subfluvial"
+title: "API de Visitas — Túnel Subfluvial Gestor de Visitas"
 sidebarTitle: "Visitas"
-description: "Create, retrieve, update, and cancel tunnel visits. Covers daily dashboard, date ranges, pagination, calendar occupancy, and cancellation workflows."
+description: "Registrá, consultá, editá y cancelá visitas al Túnel Subfluvial: dashboard diario, rangos de fechas, historial paginado, calendario y cancelaciones."
 ---
 
-The Visitas endpoints are the core of the Túnel Subfluvial visitor management system. They handle everything from the daily operations dashboard to full visit history, capacity validation, and state transitions. All endpoints require a valid `Authorization: Bearer <token>` header.
+Los endpoints de Visitas son el núcleo del sistema de gestión de visitas al Túnel Subfluvial. Cubren desde el dashboard operativo diario hasta el historial completo, validación de capacidad y transiciones de estado. Todos los endpoints requieren un encabezado `Authorization: Bearer <token>` válido.
 
 ---
 
 ## GET /api/visitas
 
-Returns all visits scheduled for a specific day. Used by the operational dashboard. When no `fecha` is supplied the server defaults to today's date.
+Devuelve todas las visitas agendadas para un día específico. Es el endpoint usado por el dashboard operativo. Si no se proporciona `fecha`, el servidor usa la fecha actual.
 
-**Response shape:** `{ fecha, total, data: [...visitas] }`
+**Forma de la respuesta:** `{ fecha, total, data: [...visitas] }`
 
 <ParamField query="fecha" type="string">
-  Target date in `YYYY-MM-DD` format. Defaults to the current server date when omitted.
+  Fecha objetivo en formato `YYYY-MM-DD`. Por defecto usa la fecha actual del servidor si se omite.
 </ParamField>
 
 <ResponseField name="fecha" type="string">
-  The date that was queried, in `YYYY-MM-DD` format.
+  La fecha consultada, en formato `YYYY-MM-DD`.
 </ResponseField>
 <ResponseField name="total" type="number">
-  Total number of visits found for that date.
+  Cantidad total de visitas encontradas para esa fecha.
 </ResponseField>
 <ResponseField name="data" type="array">
-  Array of visit objects for the requested day.
+  Array de objetos de visita para el día solicitado.
 </ResponseField>
 
 ```bash
@@ -33,27 +33,27 @@ curl -X GET "https://api.example.com/api/visitas?fecha=2025-08-15" \
   -H "Authorization: Bearer <token>"
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | Success — visit list returned |
-| `401`  | Missing or invalid token |
-| `500`  | Internal server error |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Éxito — lista de visitas devuelta |
+| `401`  | Token ausente o inválido |
+| `500`  | Error interno del servidor |
 
 ---
 
 ## GET /api/visitas/rango
 
-Returns all visits that fall within a given date range. Both `desde` and `hasta` are required; omitting either returns a `400` error. The response is a flat array of visit objects.
+Devuelve todas las visitas que caen dentro de un rango de fechas. Los parámetros `desde` y `hasta` son obligatorios; omitir cualquiera devuelve un error `400`. La respuesta es un array plano de objetos de visita.
 
 <ParamField query="desde" type="string" required>
-  Start of the range in `YYYY-MM-DD` format.
+  Inicio del rango en formato `YYYY-MM-DD`.
 </ParamField>
 <ParamField query="hasta" type="string" required>
-  End of the range in `YYYY-MM-DD` format (inclusive).
+  Fin del rango en formato `YYYY-MM-DD` (inclusive).
 </ParamField>
 
 <ResponseField name="(array)" type="array">
-  Flat array of visit objects that fall within the requested range.
+  Array plano de objetos de visita dentro del rango solicitado.
 </ResponseField>
 
 ```bash
@@ -61,37 +61,37 @@ curl -X GET "https://api.example.com/api/visitas/rango?desde=2025-08-01&hasta=20
   -H "Authorization: Bearer <token>"
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | Success — array of visits returned |
-| `400`  | Missing `desde` or `hasta` parameter |
-| `401`  | Missing or invalid token |
-| `500`  | Internal server error |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Éxito — array de visitas devuelto |
+| `400`  | Falta el parámetro `desde` o `hasta` |
+| `401`  | Token ausente o inválido |
+| `500`  | Error interno del servidor |
 
 ---
 
 ## GET /api/visitas/historial
 
-Returns the complete visit history in paginated form. Intended for the "Visitantes e Instituciones" view. Results are ordered chronologically; adjust `page` and `pageSize` to navigate through large datasets.
+Devuelve el historial completo de visitas en forma paginada. Destinado a la vista "Visitantes e Instituciones". Los resultados están ordenados cronológicamente; usá `page` y `pageSize` para navegar por conjuntos de datos grandes.
 
 <ParamField query="page" type="number">
-  Page number to retrieve. Defaults to `1`.
+  Número de página a recuperar. Por defecto `1`.
 </ParamField>
 <ParamField query="pageSize" type="number">
-  Number of records per page. Defaults to `50`.
+  Cantidad de registros por página. Por defecto `50`.
 </ParamField>
 
 <ResponseField name="data" type="array">
-  Array of visit objects for the requested page.
+  Array de objetos de visita para la página solicitada.
 </ResponseField>
 <ResponseField name="total" type="number">
-  Total number of visits across all pages.
+  Cantidad total de visitas en todas las páginas.
 </ResponseField>
 <ResponseField name="page" type="number">
-  The current page number returned.
+  Número de página actual devuelto.
 </ResponseField>
 <ResponseField name="pageSize" type="number">
-  The page size used for this response.
+  Tamaño de página usado en esta respuesta.
 </ResponseField>
 
 ```bash
@@ -99,27 +99,27 @@ curl -X GET "https://api.example.com/api/visitas/historial?page=2&pageSize=25" \
   -H "Authorization: Bearer <token>"
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | Success — paginated history returned |
-| `401`  | Missing or invalid token |
-| `500`  | Internal server error |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Éxito — historial paginado devuelto |
+| `401`  | Token ausente o inválido |
+| `500`  | Error interno del servidor |
 
 ---
 
 ## GET /api/visitas/calendario
 
-Returns per-day occupancy data for an entire month, used to render the monthly calendar view. Defaults to the current year and month when no parameters are provided.
+Devuelve datos de ocupación por día para un mes completo, utilizado para renderizar la vista de calendario mensual. Por defecto usa el año y mes actuales si no se proporcionan parámetros. La respuesta es un objeto indexado por número de día (`1`–`31`).
 
 <ParamField query="anio" type="number">
-  Four-digit year (e.g. `2025`). Defaults to the current year.
+  Año en cuatro dígitos (ej. `2025`). Por defecto el año actual.
 </ParamField>
 <ParamField query="mes" type="number">
-  Month number from `1` (January) to `12` (December). Defaults to the current month.
+  Número de mes de `1` (enero) a `12` (diciembre). Por defecto el mes actual.
 </ParamField>
 
-<ResponseField name="(array)" type="array">
-  Array of daily occupancy objects. Each entry contains the date and the visit counts for that day, used by the frontend calendar component to indicate availability.
+<ResponseField name="(object)" type="object">
+  Objeto indexado por número de día. Cada clave es un entero del `1` al `31`; cada valor contiene `visitas` (personas), `grupos`, `estado` (`'parcial'`, `'lleno'` o `'inhabilitado'`) y `texto` descriptivo.
 </ResponseField>
 
 ```bash
@@ -127,39 +127,39 @@ curl -X GET "https://api.example.com/api/visitas/calendario?anio=2025&mes=8" \
   -H "Authorization: Bearer <token>"
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | Success — monthly occupancy data returned |
-| `401`  | Missing or invalid token |
-| `500`  | Internal server error |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Éxito — datos de ocupación mensual devueltos |
+| `401`  | Token ausente o inválido |
+| `500`  | Error interno del servidor |
 
 ---
 
 ## GET /api/visitas/:id
 
-Returns the complete detail of a single visit, including its associated gestor, group, and institution data. Returns `404` if no visit with the given ID exists.
+Devuelve el detalle completo de una visita, incluyendo datos del gestor, grupo e institución asociados. Devuelve `404` si no existe ninguna visita con el ID indicado.
 
 <ParamField path="id" type="string" required>
-  The unique identifier of the visit.
+  El identificador único de la visita.
 </ParamField>
 
 <ResponseField name="id" type="string">
-  Unique visit identifier.
+  Identificador único de la visita.
 </ResponseField>
 <ResponseField name="fecha" type="string">
-  Visit date in `YYYY-MM-DD` format.
+  Fecha de la visita en formato `YYYY-MM-DD`.
 </ResponseField>
 <ResponseField name="tipo" type="string">
-  Visit type: `Salón de visitas` or `Salón + Sala de Comando`.
+  Tipo de visita: `Salón de visitas` o `Salón + Sala de Comando`.
 </ResponseField>
 <ResponseField name="estado" type="string">
-  Current visit state: `Agendada`, `Cancelada`, or `Realizada`.
+  Estado actual de la visita: `Agendada`, `Cancelada` o `Realizada`.
 </ResponseField>
 <ResponseField name="gestor" type="object">
-  Nested gestor object containing contact details.
+  Objeto gestor anidado con datos de contacto.
 </ResponseField>
 <ResponseField name="grupo" type="object">
-  Group details including institution name and visitor count.
+  Detalles del grupo incluyendo nombre de institución y cantidad de visitantes.
 </ResponseField>
 
 ```bash
@@ -167,47 +167,106 @@ curl -X GET "https://api.example.com/api/visitas/42" \
   -H "Authorization: Bearer <token>"
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | Success — full visit detail returned |
-| `401`  | Missing or invalid token |
-| `404`  | No visit found with the given ID |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Éxito — detalle completo de la visita devuelto |
+| `401`  | Token ausente o inválido |
+| `404`  | No se encontró ninguna visita con ese ID |
 
 ---
 
 ## POST /api/visitas
 
-Registers a new visit in the system. The service layer runs all business-rule validations — non-business days, daily capacity limits, and per-shift capacity — before committing the insertion inside a database transaction.
+Registra una nueva visita en el sistema. El servicio ejecuta todas las validaciones de negocio —días inhábiles, límite de aforo diario y solapamiento de horario— antes de confirmar la inserción en una transacción de base de datos.
 
-**Request body fields:**
+El cuerpo de la solicitud tiene tres secciones: `visita` (datos de la cita), `grupo` (información del grupo visitante) y `gestor_id` o `nuevoGestor` (coordinador de la visita).
 
-<ParamField body="fecha" type="string" required>
-  Scheduled visit date in `YYYY-MM-DD` format.
+**Sección `visita`:**
+
+<ParamField body="visita.fecha" type="string" required>
+  Fecha programada en formato `YYYY-MM-DD`.
 </ParamField>
-<ParamField body="turno" type="string" required>
-  Time slot or shift for the visit.
+<ParamField body="visita.hora_inicio" type="string" required>
+  Hora de inicio de la visita (ej. `"09:00"`).
 </ParamField>
-<ParamField body="tipo" type="string" required>
-  Visit type: `Salón de visitas` or `Salón + Sala de Comando`.
+<ParamField body="visita.tipo" type="string" required>
+  Tipo de visita: `Salón de visitas` o `Salón + Sala de Comando`.
 </ParamField>
-<ParamField body="gestor_id" type="number" required>
-  ID of an existing gestor who is coordinating this visit.
+<ParamField body="visita.cantidad_personas" type="number" required>
+  Cantidad esperada de visitantes. Debe ser un número mayor a cero.
 </ParamField>
-<ParamField body="institucion" type="string">
-  Name of the visiting institution or group.
+<ParamField body="visita.tiene_cruce_tunel" type="boolean">
+  Indica si la visita incluye cruce del túnel. Por defecto `false`.
 </ParamField>
-<ParamField body="cantidad_visitantes" type="number">
-  Expected number of visitors attending.
+<ParamField body="visita.tiene_discapacidad" type="boolean">
+  Indica si el grupo requiere accesibilidad. Por defecto `false`.
 </ParamField>
-<ParamField body="observaciones" type="string">
-  Optional free-text notes about the visit.
+<ParamField body="visita.discapacidad_detalle" type="string">
+  Detalle de accesibilidad requerida. Obligatorio si `tiene_discapacidad` es `true`.
+</ParamField>
+
+**Sección `grupo` — para grupos tipo `Institución`:**
+
+<ParamField body="grupo.tipo_visitante" type="string" required>
+  Debe ser `"Institución"`.
+</ParamField>
+<ParamField body="grupo.nivel_educativo" type="string" required>
+  Nivel educativo del grupo. Valores permitidos: `Infantes`, `Primario`, `Secundario`, `Terciario`, `Universitario`, `Adultos Mayores`.
+</ParamField>
+<ParamField body="grupo.institucion_id" type="string">
+  ID de una institución existente. Requerido si no se envía `nuevaInstitucion`.
+</ParamField>
+<ParamField body="grupo.nuevaInstitucion" type="object">
+  Objeto con `nombre` (requerido) y campos opcionales `telefono`, `email`, `localidad`, `provincia`, `pais` para crear una institución nueva.
+</ParamField>
+<ParamField body="grupo.observaciones" type="string">
+  Notas opcionales sobre el grupo.
+</ParamField>
+
+**Sección `grupo` — para grupos tipo `Particulares`:**
+
+<ParamField body="grupo.tipo_visitante" type="string" required>
+  Debe ser `"Particulares"`.
+</ParamField>
+<ParamField body="grupo.tipo_grupo" type="string" required>
+  Tipo de grupo: `Menores`, `Adultos` o `Mixto`.
+</ParamField>
+<ParamField body="grupo.nombre" type="string" required>
+  Nombre del grupo.
+</ParamField>
+<ParamField body="grupo.telefono" type="string" required>
+  Teléfono de contacto (ej. `0343-4000000`).
+</ParamField>
+<ParamField body="grupo.email" type="string" required>
+  Email de contacto.
+</ParamField>
+<ParamField body="grupo.localidad" type="string" required>
+  Localidad del grupo.
+</ParamField>
+<ParamField body="grupo.provincia" type="string" required>
+  Provincia del grupo.
+</ParamField>
+<ParamField body="grupo.pais" type="string">
+  País del grupo. Por defecto `"Argentina"`.
+</ParamField>
+<ParamField body="grupo.observaciones" type="string">
+  Notas opcionales sobre el grupo.
+</ParamField>
+
+**Sección gestor:**
+
+<ParamField body="gestor_id" type="string">
+  ID de un gestor existente. Requerido si no se envía `nuevoGestor`.
+</ParamField>
+<ParamField body="nuevoGestor" type="object">
+  Objeto con `nombre` (requerido) y campos opcionales `empresa_institucion`, `telefono`, `email`, `localidad`, `provincia`, `pais` para crear un gestor nuevo en la misma transacción.
 </ParamField>
 
 <ResponseField name="mensaje" type="string">
-  Human-readable confirmation message on success.
+  Mensaje de confirmación: `"Visita registrada con éxito"`.
 </ResponseField>
-<ResponseField name="visita_id" type="number">
-  The ID of the newly created visit.
+<ResponseField name="visita_id" type="string">
+  El ID de la visita recién creada.
 </ResponseField>
 
 ```bash
@@ -215,61 +274,81 @@ curl -X POST "https://api.example.com/api/visitas" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
-    "fecha": "2025-09-10",
-    "turno": "Mañana",
-    "tipo": "Salón de visitas",
-    "gestor_id": 7,
-    "institucion": "Escuela Técnica N°2",
-    "cantidad_visitantes": 30,
-    "observaciones": "Grupo de estudiantes de último año"
+    "gestor_id": "a1b2c3d4",
+    "visita": {
+      "fecha": "2025-09-10",
+      "hora_inicio": "09:00",
+      "tipo": "Salón de visitas",
+      "cantidad_personas": 30
+    },
+    "grupo": {
+      "tipo_visitante": "Institución",
+      "nivel_educativo": "Secundario",
+      "institucion_id": "e5f6g7h8"
+    }
   }'
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `201`  | Visit created — returns `{ mensaje, visita_id }` |
-| `400`  | Validation failed: non-business day, daily capacity exceeded, or shift capacity exceeded |
-| `401`  | Missing or invalid token |
+| Estado | Significado |
+|--------|-------------|
+| `201`  | Visita creada — devuelve `{ mensaje, visita_id }` |
+| `400`  | Validación fallida: día inhábil, aforo superado, datos inválidos |
+| `401`  | Token ausente o inválido |
 
 ---
 
 ## PUT /api/visitas/:id
 
-Updates an existing visit's data. If the date, shift, or type fields are changed the service re-runs all capacity and availability validations before persisting. Invalid `estado` values are rejected at the controller level before reaching the service.
+Edita los datos de una visita existente. Si se modifican `fecha`, `hora_inicio` o `cantidad_personas`, el servicio re-ejecuta todas las validaciones de capacidad y disponibilidad antes de persistir. Los valores de `estado` inválidos son rechazados a nivel de controller antes de llegar al servicio.
 
 <ParamField path="id" type="string" required>
-  The unique identifier of the visit to update.
+  El identificador único de la visita a actualizar.
 </ParamField>
 <ParamField body="fecha" type="string">
-  New visit date in `YYYY-MM-DD` format.
+  Nueva fecha de la visita en formato `YYYY-MM-DD`.
 </ParamField>
-<ParamField body="turno" type="string">
-  New time slot or shift.
+<ParamField body="hora_inicio" type="string">
+  Nueva hora de inicio (ej. `"10:00"`).
 </ParamField>
 <ParamField body="tipo" type="string">
-  Visit type: `Salón de visitas` or `Salón + Sala de Comando`.
+  Tipo de visita: `Salón de visitas` o `Salón + Sala de Comando`.
 </ParamField>
 <ParamField body="estado" type="string">
-  New state: must be one of `Agendada`, `Cancelada`, or `Realizada`.
+  Nuevo estado: debe ser `Agendada`, `Cancelada` o `Realizada`.
 </ParamField>
-<ParamField body="gestor_id" type="number">
-  Replacement gestor ID.
+<ParamField body="cantidad_personas" type="number">
+  Cantidad de visitantes actualizada.
 </ParamField>
-<ParamField body="institucion" type="string">
-  Updated institution name.
+<ParamField body="tiene_cruce_tunel" type="boolean">
+  Indica si la visita incluye cruce del túnel.
 </ParamField>
-<ParamField body="cantidad_visitantes" type="number">
-  Updated visitor count.
+<ParamField body="tiene_discapacidad" type="boolean">
+  Indica si el grupo requiere accesibilidad.
+</ParamField>
+<ParamField body="discapacidad_detalle" type="string">
+  Detalle de accesibilidad actualizado.
 </ParamField>
 <ParamField body="observaciones" type="string">
-  Updated free-text notes.
+  Notas actualizadas sobre el grupo.
+</ParamField>
+<ParamField body="gestor_id" type="string">
+  ID del gestor de reemplazo.
+</ParamField>
+<ParamField body="nuevoGestor" type="object">
+  Objeto con `nombre` y campos opcionales para crear un gestor nuevo durante la edición.
+</ParamField>
+<ParamField body="institucion_id" type="string">
+  ID de la institución de reemplazo (solo visitas tipo `Institución`).
+</ParamField>
+<ParamField body="nuevaInstitucion" type="object">
+  Objeto con `nombre` y campos opcionales para crear una institución nueva durante la edición.
 </ParamField>
 
 <ResponseField name="mensaje" type="string">
-  Human-readable confirmation message.
+  Mensaje de confirmación: `"Visita modificada exitosamente"`.
 </ResponseField>
 <ResponseField name="visita" type="object">
-  The full updated visit object as persisted in the database.
+  El objeto de visita completo y actualizado tal como fue persistido en la base de datos.
 </ResponseField>
 
 ```bash
@@ -282,43 +361,43 @@ curl -X PUT "https://api.example.com/api/visitas/42" \
   }'
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | Visit updated — returns `{ mensaje, visita }` |
-| `400`  | Invalid `estado` value, capacity conflict, or other validation error |
-| `401`  | Missing or invalid token |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Visita actualizada — devuelve `{ mensaje, visita }` |
+| `400`  | Valor de `estado` inválido, conflicto de capacidad u otro error de validación |
+| `401`  | Token ausente o inválido |
 
 ---
 
 ## PATCH /api/visitas/:id/cancelar
 
-Cancels a visit and records the reason in the audit log. The `motivo` field should describe why the visit is being cancelled. Returns `404` if the visit does not exist and `409` if it has already been cancelled.
+Cancela una visita y registra el motivo en el log de auditoría. El campo `motivo` describe el motivo de la cancelación. Devuelve `404` si la visita no existe y `409` si ya fue cancelada previamente.
 
 <ParamField path="id" type="string" required>
-  The unique identifier of the visit to cancel.
+  El identificador único de la visita a cancelar.
 </ParamField>
-<ParamField body="motivo" type="string" required>
-  The reason for cancellation, stored in the audit trail.
+<ParamField body="motivo" type="string">
+  El motivo de la cancelación, almacenado en el log de auditoría.
 </ParamField>
 
 <ResponseField name="mensaje" type="string">
-  Confirmation message: `"Visita cancelada exitosamente"`.
+  Mensaje de confirmación: `"Visita cancelada exitosamente"`.
 </ResponseField>
 <ResponseField name="visita" type="object">
-  The updated visit object with `estado` set to `Cancelada`.
+  El objeto de visita actualizado con `estado` igual a `Cancelada`.
 </ResponseField>
 
 ```bash
 curl -X PATCH "https://api.example.com/api/visitas/42/cancelar" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{ "motivo": "Grupo no pudo asistir por condiciones climáticas" }'
+  -d '{ "motivo": "El grupo no pudo asistir por condiciones climáticas" }'
 ```
 
-| Status | Meaning |
-|--------|---------|
-| `200`  | Visit cancelled — returns `{ mensaje, visita }` |
-| `401`  | Missing or invalid token |
-| `404`  | No visit found with the given ID |
-| `409`  | Visit is already in `Cancelada` state |
-| `500`  | Unexpected server error |
+| Estado | Significado |
+|--------|-------------|
+| `200`  | Visita cancelada — devuelve `{ mensaje, visita }` |
+| `401`  | Token ausente o inválido |
+| `404`  | `"Visita no encontrada"` — no existe ninguna visita con ese ID |
+| `409`  | `"La visita ya se encuentra cancelada"` — la visita ya tiene estado `Cancelada` |
+| `500`  | Error inesperado del servidor |

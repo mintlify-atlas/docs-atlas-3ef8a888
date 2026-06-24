@@ -4,7 +4,7 @@ sidebarTitle: "Registro Visitas"
 description: "Guía completa para agendar un nuevo grupo, completar los campos obligatorios, entender las validaciones de aforo y gestionar cambios o cancelaciones."
 ---
 
-El formulario de registro de visitas (`/nueva-visita`) concentra toda la lógica de alta de grupos en el sistema. Está organizado en tres secciones: datos del gestor, datos del grupo (institución o particulares) y datos del turno. Al confirmar, el backend ejecuta una cadena de cinco validaciones antes de persistir el registro; cualquier falla en esa cadena devuelve un error descriptivo que se muestra directamente en el formulario.
+El formulario de registro de visitas (`/nueva-visita`) concentra toda la lógica de alta de grupos en el sistema. Está organizado en tres secciones: datos del gestor, datos del grupo (institución o particulares) y datos del turno. Al confirmar, el backend ejecuta tres validaciones de disponibilidad antes de persistir el registro; cualquier falla devuelve un error descriptivo que se muestra directamente en el formulario.
 
 ## Tipos de visita disponibles
 
@@ -68,19 +68,19 @@ El sistema acepta exactamente dos tipos de visita, definidos como constantes en 
   </Step>
 </Steps>
 
-## Validaciones del backend (flujo de 5 pasos)
+## Validaciones del backend (3 reglas + transacción)
 
-El servicio `AvailabilityService.validarDisponibilidad()` aplica las siguientes reglas en orden antes de insertar ningún registro:
+El servicio `AvailabilityService.validarDisponibilidad()` aplica tres reglas de disponibilidad en orden antes de insertar ningún registro. Superadas las validaciones, las inserciones se ejecutan dentro de una sola transacción con registro de auditoría:
 
 <Steps>
   <Step title="Aforo diario máximo">
-    Suma todas las personas con visitas activas en la fecha. Si agregar el nuevo grupo supera la `capacidad_maxima` (**300 personas/día**), se rechaza con el mensaje: _"Aforo diario superado. Capacidad máxima: 300. Ya agendadas: X. Disponibles: Y."_
+    Suma todas las personas con visitas activas en la fecha. Si agregar el nuevo grupo supera la `capacidad_maxima` (por defecto **300 personas/día**, configurable), se rechaza con el mensaje: _"Aforo diario superado. Capacidad máxima: N. Ya agendadas: X. Disponibles: Y."_
   </Step>
   <Step title="Día hábil">
     Consulta la tabla `DiaInhabil`. Si la fecha está bloqueada, se rechaza con el mensaje: _"La fecha seleccionada es un día inhábil. No se pueden agendar visitas."_
   </Step>
   <Step title="Aforo por turno">
-    Suma las personas ya agendadas en ese horario exacto (fecha + hora_inicio). Si agregar el nuevo grupo supera la `capacidad_por_turno` (**80 personas/turno**), se rechaza con el mensaje: _"Capacidad del turno HH:MM superada. Máximo por turno: 80. Ya agendadas en ese turno: X. Disponibles: Y."_
+    Suma las personas ya agendadas en ese horario exacto (fecha + hora_inicio). Si agregar el nuevo grupo supera la `capacidad_por_turno` (por defecto **80 personas/turno**, configurable), se rechaza con el mensaje: _"Capacidad del turno HH:MM superada. Máximo por turno: N. Ya agendadas en ese turno: X. Disponibles: Y."_
   </Step>
   <Step title="INSERT de la visita">
     Superadas las tres validaciones, se ejecuta la transacción de base de datos: primero se crea el gestor nuevo (si aplica), luego la institución nueva (si aplica), luego el grupo, y finalmente la visita, todo dentro de un `BEGIN … COMMIT`.

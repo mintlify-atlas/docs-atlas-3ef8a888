@@ -1,7 +1,7 @@
 ---
-title: "API del Túnel Subfluvial — Descripción General"
+title: "API Túnel Subfluvial: Visión General de Arquitectura"
 sidebarTitle: "Descripción General"
-description: "Visión general de la REST API del sistema de gestión de visitas: arquitectura, autenticación JWT, formatos, CORS, control de acceso por rol y endpoints disponibles."
+description: "Visión general de la REST API del Túnel Subfluvial: arquitectura Express 5, autenticación JWT, CORS, control de acceso por rol y endpoints disponibles."
 ---
 
 La API del Túnel Subfluvial es una interfaz REST construida con **Node.js, Express 5 y TypeScript**, respaldada por una base de datos **PostgreSQL**. Expone todos los recursos necesarios para gestionar visitas guiadas, usuarios, estadísticas, configuración, auditoría e instituciones a través de rutas prefijadas en `/api/`. Todos los endpoints, salvo el inicio de sesión, requieren autenticación mediante **JWT Bearer token**.
@@ -20,10 +20,15 @@ http://localhost:3000   (desarrollo por defecto)
 | `FRONTEND_URL` | Origen permitido por CORS | `http://localhost:5173` |
 | `JWT_SECRET` | Clave secreta para firmar los tokens JWT | *(requerida)* |
 | `JWT_EXPIRY` | Duración del token JWT | `24h` |
-| `DATABASE_URL` | Cadena de conexión a PostgreSQL | *(requerida)* |
+| `DATABASE_URL` | URL de conexión completa a PostgreSQL (p. ej. en Render). Si está definida, tiene precedencia sobre las variables individuales. | *(opcional si se usan las vars individuales)* |
+| `DB_USER` | Usuario de PostgreSQL | `postgres` |
+| `DB_HOST` | Host del servidor PostgreSQL | `localhost` |
+| `DB_NAME` | Nombre de la base de datos | `tunel_subfluvial` |
+| `DB_PASSWORD` | Contraseña del usuario de PostgreSQL | *(requerida en local)* |
+| `DB_PORT` | Puerto de PostgreSQL | `5432` |
 
 <Note>
-  `JWT_SECRET` y `DATABASE_URL` son obligatorias. El servidor registrará un error fatal y rechazará peticiones autenticadas si `JWT_SECRET` no está definida.
+  `JWT_SECRET` es obligatoria; sin ella el servidor rechazará todas las peticiones autenticadas. Para la base de datos, define `DATABASE_URL` (entornos cloud) **o** las variables individuales `DB_USER`, `DB_HOST`, `DB_NAME`, `DB_PASSWORD` y `DB_PORT` (entorno local).
 </Note>
 
 ## Autenticación
